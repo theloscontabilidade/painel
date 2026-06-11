@@ -495,23 +495,31 @@ function loadLocal() {
 // ── API ──
 function get(params, ok, err) {
   if (!SCRIPT_URL) { setStatus(false); if(err) err(); return; }
+  params.token = AUTH_TOKEN;
   var url = SCRIPT_URL + '?';
   var parts = [];
   for (var k in params) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
   url += parts.join('&');
   fetch(url)
     .then(function(r){ return r.json(); })
-    .then(function(d){ setStatus(true); if(ok) ok(d); })
+    .then(function(d){
+      if (d.error === 'NÃO AUTORIZADO') { setStatus(false); return; }
+      setStatus(true); if(ok) ok(d);
+    })
     .catch(function(e){ setStatus(false); if(err) err(e); });
 }
 
 function post(params, ok, err) {
   if (!SCRIPT_URL) { setStatus(false); if(err) err(); return; }
+  params.token = AUTH_TOKEN;
   var fd = new FormData();
   for (var k in params) fd.append(k, params[k]);
   fetch(SCRIPT_URL, { method:'POST', body: fd })
     .then(function(r){ return r.json(); })
-    .then(function(d){ setStatus(true); if(ok) ok(d); })
+    .then(function(d){
+      if (d.error === 'NÃO AUTORIZADO') { setStatus(false); return; }
+      setStatus(true); if(ok) ok(d);
+    })
     .catch(function(e){ setStatus(false); if(err) err(e); });
 }
 
@@ -1017,12 +1025,15 @@ var EMAILS_AUTORIZADOS = [
   'thelos.fiscal@gmail.com'
 ];
 
+var AUTH_TOKEN = ''; // token JWT do usuário logado — enviado em cada chamada
+
 function handleCredential(response) {
   try {
     var payload = JSON.parse(atob(response.credential.split('.')[1]));
     var email = payload.email;
     if (EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
       // Acesso autorizado
+      AUTH_TOKEN = response.credential;
       document.getElementById('auth-screen').classList.add('h');
       document.getElementById('main-app').style.display = 'flex';
       document.querySelectorAll('.bnav, .fab, .wrap, #stats-bar').forEach(function(el){
@@ -1030,6 +1041,7 @@ function handleCredential(response) {
       });
       // Salvar sessão
       sessionStorage.setItem('thelos_auth', email);
+      sessionStorage.setItem('thelos_token', response.credential);
       // Mostrar email no header
       document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
       // Iniciar app
@@ -1046,7 +1058,9 @@ function handleCredential(response) {
 
 function checkSession() {
   var email = sessionStorage.getItem('thelos_auth');
-  if (email && EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
+  var token = sessionStorage.getItem('thelos_token');
+  if (email && token && EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
+    AUTH_TOKEN = token;
     document.getElementById('auth-screen').classList.add('h');
     document.getElementById('main-app').style.display = 'flex';
     document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
@@ -1058,6 +1072,8 @@ function checkSession() {
 
 function logout() {
   sessionStorage.removeItem('thelos_auth');
+  sessionStorage.removeItem('thelos_token');
+  AUTH_TOKEN = '';
   location.reload();
 }
 
