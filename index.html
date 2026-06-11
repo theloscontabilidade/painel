@@ -5,7 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
 <title>Thelos — Painel Operacional</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
+/* ── AUTH ── */
+#auth-screen{position:fixed;inset:0;background:#F4F3EF;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:20px;}
+#auth-screen.h{display:none;}
+.auth-logo{font-family:"IBM Plex Mono",monospace;font-size:13px;letter-spacing:.12em;color:#1A1917;opacity:.5;}
+.auth-logo span{opacity:.4;margin-right:6px;}
+.auth-box{background:#fff;border:1px solid #D8D5CF;border-radius:16px;padding:32px 28px;text-align:center;max-width:340px;width:90%;}
+.auth-title{font-size:18px;font-weight:600;margin-bottom:6px;color:#1A1917;}
+.auth-sub{font-size:13px;color:#6B6760;margin-bottom:24px;line-height:1.5;}
+.auth-denied{background:#F7E8E8;border:1px solid #D4A0A0;border-radius:12px;padding:16px;font-size:13px;color:#8B2020;margin-top:16px;line-height:1.6;display:none;}
+.auth-user{font-size:12px;font-family:"IBM Plex Mono",monospace;color:#6B6760;margin-top:12px;}
 /* ── RESET & VARS ── */
 :root {
   --bg:#F4F3EF; --sf:#fff; --sf2:#EEECEA; --bd:#D8D5CF;
@@ -164,12 +175,45 @@ button:disabled{opacity:.4;cursor:not-allowed;}
 </head>
 <body>
 
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-logo"><span>▲</span>THELOS</div>
+  <div class="auth-box">
+    <div class="auth-title">Painel Operacional</div>
+    <div class="auth-sub">Acesse com sua conta Google autorizada para continuar.</div>
+    <div id="g_id_onload"
+         data-client_id="332476927471-6oi8qs6vd0fojnm4j8hum6buljtf2jvm.apps.googleusercontent.com"
+         data-callback="handleCredential"
+         data-auto_select="true"
+         data-itp_support="true">
+    </div>
+    <div class="g_id_signin"
+         data-type="standard"
+         data-size="large"
+         data-theme="outline"
+         data-text="signin_with"
+         data-shape="rectangular"
+         data-locale="pt-BR"
+         data-logo_alignment="left">
+    </div>
+    <div class="auth-denied" id="auth-denied">
+      ⛔ Acesso negado.<br/>
+      <strong id="auth-denied-email"></strong><br/>
+      Este email não está autorizado.<br/>
+      Entre em contato com a gestão.
+    </div>
+    <div class="auth-user" id="auth-user"></div>
+  </div>
+</div>
+
 <!-- HEADER -->
-<div class="hdr">
+<div class="hdr" id="main-app" style="display:none;">
   <div class="logo"><span>▲</span>THELOS</div>
   <div style="display:flex;align-items:center;gap:10px;">
     <div class="sy"><div class="dot" id="dot"></div><span id="sy-txt">conectando</span></div>
+    <span id="auth-user-hdr" style="font-family:var(--mn);font-size:11px;color:rgba(255,255,255,.5);"></span>
     <button class="btn-cfg" style="font-family:var(--mn);font-size:11px;color:rgba(255,255,255,.5);background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:4px 10px;cursor:pointer;" onclick="openCfg()">config</button>
+    <button style="font-family:var(--mn);font-size:11px;color:rgba(255,255,255,.35);background:transparent;border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;cursor:pointer;" onclick="logout()">sair</button>
   </div>
 </div>
 
@@ -962,15 +1006,77 @@ function renderRecorrentes() {
   document.getElementById('rec-list').innerHTML = html;
 }
 
+// ── AUTENTICAÇÃO GOOGLE ──
+// Lista de emails autorizados
+var EMAILS_AUTORIZADOS = [
+  'theloscontabilidade@gmail.com',
+  'atendimento.thelos@gmail.com',
+  'theloscontabilidade.dp@gmail.com',
+  'agenda1.thelos@gmail.com',
+  'theloscontabilidade.protocolo@gmail.com',
+  'thelos.fiscal@gmail.com'
+];
+
+function handleCredential(response) {
+  try {
+    var payload = JSON.parse(atob(response.credential.split('.')[1]));
+    var email = payload.email;
+    if (EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
+      // Acesso autorizado
+      document.getElementById('auth-screen').classList.add('h');
+      document.getElementById('main-app').style.display = 'flex';
+      document.querySelectorAll('.bnav, .fab, .wrap, #stats-bar').forEach(function(el){
+        if(el) el.style.display = '';
+      });
+      // Salvar sessão
+      sessionStorage.setItem('thelos_auth', email);
+      // Mostrar email no header
+      document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
+      // Iniciar app
+      initApp();
+    } else {
+      // Acesso negado
+      document.getElementById('auth-denied').style.display = 'block';
+      document.getElementById('auth-denied-email').textContent = email;
+    }
+  } catch(e) {
+    console.error('Erro auth:', e);
+  }
+}
+
+function checkSession() {
+  var email = sessionStorage.getItem('thelos_auth');
+  if (email && EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
+    document.getElementById('auth-screen').classList.add('h');
+    document.getElementById('main-app').style.display = 'flex';
+    document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
+    initApp();
+    return true;
+  }
+  return false;
+}
+
+function logout() {
+  sessionStorage.removeItem('thelos_auth');
+  location.reload();
+}
+
+function initApp() {
+  loadLocal();
+  checkBanner();
+  renderGestor();
+  renderTriagem();
+  renderTarefas();
+  renderRecorrentes();
+  setPage('gestor');
+  if (SCRIPT_URL) loadAll();
+}
+
 // ── INIT ──
-loadLocal();
-checkBanner();
-renderGestor();
-renderTriagem();
-renderTarefas();
-renderRecorrentes();
-setPage('gestor');
-if (SCRIPT_URL) loadAll();
+if (!checkSession()) {
+  // Aguarda Google Sign-In carregar
+}
+
 </script>
 </body>
 </html>
