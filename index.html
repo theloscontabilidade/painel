@@ -6,6 +6,42 @@
 <title>Thelos — Painel Operacional</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// Renovação automática de token — roda antes do carregamento principal
+var TOKEN_CLIENT = null;
+var AUTH_TOKEN = '';
+var TOKEN_EXPIRY = 0;
+
+function initTokenClient(email) {
+  TOKEN_CLIENT = google.accounts.oauth2.initTokenClient({
+    client_id: '332476927471-6oi8qs6vd0fojnm4j8hum6buljtf2jvm.apps.googleusercontent.com',
+    scope: 'openid email profile',
+    hint: email,
+    callback: function(resp) {
+      if (resp && resp.access_token) {
+        // Usa access_token para renovar — busca novo id_token via userinfo
+        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + resp.access_token }
+        }).then(function(r){ return r.json(); }).then(function(info){
+          // Mantém token renovado na sessão
+          TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000; // 45 min
+          sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
+          if (window._tokenRenewCallback) window._tokenRenewCallback(resp.access_token);
+        }).catch(function(){});
+      }
+    }
+  });
+}
+
+function agendarRenovacao(email) {
+  // Renova 5 minutos antes de expirar (a cada 45 min)
+  setInterval(function() {
+    if (TOKEN_CLIENT) {
+      TOKEN_CLIENT.requestAccessToken({ prompt: '' });
+    }
+  }, 45 * 60 * 1000);
+}
+</script>
 <style>
 /* ── AUTH ── */
 #auth-screen{position:fixed;inset:0;background:#F4F3EF;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:20px;}
@@ -1015,7 +1051,6 @@ function renderRecorrentes() {
 }
 
 // ── AUTENTICAÇÃO GOOGLE ──
-// Lista de emails autorizados
 var EMAILS_AUTORIZADOS = [
   'theloscontabilidade@gmail.com',
   'atendimento.thelos@gmail.com',
@@ -1025,45 +1060,69 @@ var EMAILS_AUTORIZADOS = [
   'thelos.fiscal@gmail.com'
 ];
 
-var AUTH_TOKEN = ''; // token JWT do usuário logado — enviado em cada chamada
-
 function handleCredential(response) {
   try {
     var payload = JSON.parse(atob(response.credential.split('.')[1]));
     var email = payload.email;
     if (EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
-      // Acesso autorizado
       AUTH_TOKEN = response.credential;
-      document.getElementById('auth-screen').classList.add('h');
-      document.getElementById('main-app').style.display = 'flex';
-      document.querySelectorAll('.bnav, .fab, .wrap, #stats-bar').forEach(function(el){
-        if(el) el.style.display = '';
-      });
-      // Salvar sessão
+      TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000;
       sessionStorage.setItem('thelos_auth', email);
       sessionStorage.setItem('thelos_token', response.credential);
-      // Mostrar email no header
+      sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
+      document.getElementById('auth-screen').classList.add('h');
+      document.getElementById('main-app').style.display = 'flex';
       document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
-      // Iniciar app
+      // Iniciar renovação automática
+      google.accounts.id.initialize({
+        client_id: '332476927471-6oi8qs6vd0fojnm4j8hum6buljtf2jvm.apps.googleusercontent.com',
+        callback: function(r) {
+          AUTH_TOKEN = r.credential;
+          sessionStorage.setItem('thelos_token', r.credential);
+          TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000;
+          sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
+        },
+        auto_select: true
+      });
+      // Renovar a cada 40 minutos silenciosamente
+      setInterval(function() {
+        google.accounts.id.prompt(function(n) {});
+      }, 40 * 60 * 1000);
       initApp();
     } else {
-      // Acesso negado
       document.getElementById('auth-denied').style.display = 'block';
       document.getElementById('auth-denied-email').textContent = email;
     }
-  } catch(e) {
-    console.error('Erro auth:', e);
-  }
+  } catch(e) { console.error('Erro auth:', e); }
 }
 
 function checkSession() {
   var email = sessionStorage.getItem('thelos_auth');
   var token = sessionStorage.getItem('thelos_token');
+  var expiry = parseInt(sessionStorage.getItem('thelos_token_expiry') || '0');
   if (email && token && EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
     AUTH_TOKEN = token;
     document.getElementById('auth-screen').classList.add('h');
     document.getElementById('main-app').style.display = 'flex';
     document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
+    // Renovar se token estiver próximo de expirar
+    if (expiry - Date.now() < 10 * 60 * 1000) {
+      google.accounts.id.initialize({
+        client_id: '332476927471-6oi8qs6vd0fojnm4j8hum6buljtf2jvm.apps.googleusercontent.com',
+        callback: function(r) {
+          AUTH_TOKEN = r.credential;
+          sessionStorage.setItem('thelos_token', r.credential);
+          TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000;
+          sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
+        },
+        auto_select: true
+      });
+      google.accounts.id.prompt(function(n) {});
+    }
+    // Renovar a cada 40 minutos
+    setInterval(function() {
+      google.accounts.id.prompt(function(n) {});
+    }, 40 * 60 * 1000);
     initApp();
     return true;
   }
@@ -1073,7 +1132,9 @@ function checkSession() {
 function logout() {
   sessionStorage.removeItem('thelos_auth');
   sessionStorage.removeItem('thelos_token');
+  sessionStorage.removeItem('thelos_token_expiry');
   AUTH_TOKEN = '';
+  google.accounts.id.disableAutoSelect();
   location.reload();
 }
 
