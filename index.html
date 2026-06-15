@@ -962,7 +962,7 @@ function cardTriagem(m, mode) {
     + '<div class="mt">'
     + (m.setor?'<span class="tag ts">'+m.setor+'</span>':'')
     + '<span class="tag '+(tc[m.prio]||'tN')+'">'+m.prio+'</span>'
-    + (m.prazo?'<span class="tag">📅 '+m.prazo+'</span>':'')
+    + (m.prazo?'<span class="tag">📅 '+formatarPrazo(m.prazo)+'</span>':'')
     + '<span class="ct">'+ago(m.ts)+'</span>'
     + (ov?'<span class="tag ov">+24h</span>':'')
     + '</div>'
@@ -1000,6 +1000,22 @@ function setFilterTar(el, v) {
   renderTarefas();
 }
 
+function formatarPrazo(prazo) {
+  if (!prazo) return '';
+  var s = String(prazo).trim();
+  if (!s || s === 'undefined' || s === 'null') return '';
+  // Já está no formato dd/mm/aaaa
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // Tenta converter qualquer formato de data
+  try {
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+    }
+  } catch(e) {}
+  return s;
+}
+
 function cardTarefa(t, isDone) {
   var pc = {alta:'pA',media:'pM',normal:'pN'};
   var tc = {alta:'tA',media:'tM',normal:'tN'};
@@ -1013,7 +1029,7 @@ function cardTarefa(t, isDone) {
     + '<div class="mt">'
     + '<span class="tag ts">'+sNome+'</span>'
     + '<span class="tag '+(tc[t.prio]||'tN')+'">'+(t.prio==='alta'?'Alta':t.prio==='media'?'Média':'Normal')+'</span>'
-    + (t.prazo?'<span class="tag">📅 '+t.prazo+'</span>':'')
+    + (t.prazo?'<span class="tag">📅 '+formatarPrazo(t.prazo)+'</span>':'')
     + (t.resp?'<span class="tag">👤 '+t.resp+'</span>':'')
     + '<span class="ct">'+ago(t.ts)+'</span>'
     + (!isDone && over(t.ts)?'<span class="tag ov">+24h</span>':'')
