@@ -979,6 +979,17 @@ function stabTar(t) {
   });
 }
 
+function parsePrazo(prazo) {
+  if (!prazo) return Infinity;
+  var s = String(prazo).trim();
+  var partes = s.split('/');
+  if (partes.length === 3) {
+    return new Date(partes[2], partes[1]-1, partes[0]).getTime();
+  }
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? Infinity : d.getTime();
+}
+
 function renderTarefas() {
   var setoresUsados = [...new Set(tarefas.map(function(t){ return t.setor; }))];
   var pillsHtml = '<div class="pill'+(filterTar===''?' on':'')+'" onclick="setFilterTar(this,\'\')">Todos</div>'
@@ -987,8 +998,13 @@ function renderTarefas() {
   document.getElementById('pills-tarefas').innerHTML = pillsHtml;
 
   var list = tarefas.filter(function(t){ return !filterTar || t.setor===filterTar; });
-  var o = list.filter(function(t){ return t.status==='open'; });
-  var d = list.filter(function(t){ return t.status==='done'; });
+
+  // Ordenar por prazo mais próximo — sem prazo vai para o final
+  var o = list.filter(function(t){ return t.status==='open'; })
+    .sort(function(a,b){ return parsePrazo(a.prazo) - parsePrazo(b.prazo); });
+  var d = list.filter(function(t){ return t.status==='done'; })
+    .sort(function(a,b){ return parsePrazo(a.prazo) - parsePrazo(b.prazo); });
+
   document.getElementById('tar-o').innerHTML = o.length ? o.map(function(t){ return cardTarefa(t,false); }).join('') : '<div class="empty"><span class="ei">✓</span>Nenhuma em aberto</div>';
   document.getElementById('tar-d').innerHTML = d.length ? d.map(function(t){ return cardTarefa(t,true); }).join('') : '<div class="empty">Nenhuma concluída</div>';
 }
