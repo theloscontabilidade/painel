@@ -2,12 +2,14 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
-<title>Thelos — Painel Operacional</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Thelos — Painel de Tarefas</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
-// Renovação automática de token — roda antes do carregamento principal
+// ============================================================
+//  AUTH — Google Sign-In + renovação de token
+// ============================================================
 var TOKEN_CLIENT = null;
 var AUTH_TOKEN = '';
 var TOKEN_EXPIRY = 0;
@@ -19,14 +21,11 @@ function initTokenClient(email) {
     hint: email,
     callback: function(resp) {
       if (resp && resp.access_token) {
-        // Usa access_token para renovar — busca novo id_token via userinfo
         fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
           headers: { Authorization: 'Bearer ' + resp.access_token }
         }).then(function(r){ return r.json(); }).then(function(info){
-          // Mantém token renovado na sessão
-          TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000; // 45 min
+          TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000;
           sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
-          if (window._tokenRenewCallback) window._tokenRenewCallback(resp.access_token);
         }).catch(function(){});
       }
     }
@@ -34,11 +33,8 @@ function initTokenClient(email) {
 }
 
 function agendarRenovacao(email) {
-  // Renova 5 minutos antes de expirar (a cada 45 min)
   setInterval(function() {
-    if (TOKEN_CLIENT) {
-      TOKEN_CLIENT.requestAccessToken({ prompt: '' });
-    }
+    if (TOKEN_CLIENT) TOKEN_CLIENT.requestAccessToken({ prompt: '' });
   }, 45 * 60 * 1000);
 }
 </script>
@@ -53,8 +49,9 @@ function agendarRenovacao(email) {
 .auth-sub{font-size:13px;color:#6B6760;margin-bottom:24px;line-height:1.5;}
 .auth-denied{background:#F7E8E8;border:1px solid #D4A0A0;border-radius:12px;padding:16px;font-size:13px;color:#8B2020;margin-top:16px;line-height:1.6;display:none;}
 .auth-user{font-size:12px;font-family:"IBM Plex Mono",monospace;color:#6B6760;margin-top:12px;}
+
 /* ── RESET & VARS ── */
-:root {
+:root{
   --bg:#F4F3EF; --sf:#fff; --sf2:#EEECEA; --bd:#D8D5CF;
   --tx:#1A1917; --tx2:#6B6760; --tx3:#9E9B96;
   --gn:#2E6B3E; --gnb:#E4F2E8; --gnd:#A8D4B4;
@@ -63,6 +60,7 @@ function agendarRenovacao(email) {
   --bl:#1A4A7A; --blb:#E8F0F8; --bld:#9ABDD4;
   --pu:#5B2D8B; --pub:#F0EAF8; --pud:#C3A0E0;
   --tl:#0F5C52; --tlb:#E1F5F2; --tld:#7ECDC4;
+  --wa:#1F7A3D; --wab:#E6F4EA; --wad:#A3D4B0;
   --mn:"IBM Plex Mono",monospace; --sn:"DM Sans",sans-serif;
   --r:10px; --rl:14px;
 }
@@ -73,11 +71,13 @@ body{font-family:var(--sn);background:var(--bg);color:var(--tx);min-height:100vh
 .hdr{background:var(--tx);color:#F4F3EF;padding:13px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
 .logo{font-family:var(--mn);font-size:12px;letter-spacing:.08em;opacity:.9;}
 .logo span{opacity:.4;margin-right:5px;}
+.hdr-right{display:flex;align-items:center;gap:12px;}
 .sy{font-size:11px;font-family:var(--mn);display:flex;align-items:center;gap:5px;opacity:.8;}
 .dot{width:7px;height:7px;border-radius:50%;background:#6FCF97;animation:pu 2s infinite;flex-shrink:0;}
 .dot.off{background:#EB5757;animation:none;}
 .dot.sp{background:#F2C94C;animation:pu .6s infinite;}
 @keyframes pu{0%,100%{opacity:1}50%{opacity:.3}}
+.cfg-btn{font-family:var(--mn);font-size:11px;color:rgba(255,255,255,.6);background:rgba(255,255,255,.08);border:none;padding:5px 11px;border-radius:14px;cursor:pointer;}
 
 /* ── BOTTOM NAV ── */
 .bnav{position:fixed;bottom:0;left:0;right:0;background:var(--tx);display:flex;z-index:100;border-top:1px solid rgba(255,255,255,.1);}
@@ -92,7 +92,7 @@ body{font-family:var(--sn);background:var(--bg);color:var(--tx);min-height:100vh
 .btn-cfg-banner{font-size:12px;padding:6px 14px;border-radius:20px;background:var(--og);color:#fff;border:none;cursor:pointer;font-family:var(--mn);}
 
 /* ── WRAP ── */
-.wrap{padding:14px 14px 0;max-width:700px;margin:0 auto;}
+.wrap{padding:14px 14px 0;max-width:760px;margin:0 auto;}
 
 /* ── STATS ── */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
@@ -101,393 +101,260 @@ body{font-family:var(--sn);background:var(--bg);color:var(--tx);min-height:100vh
 .sv{font-size:24px;font-weight:600;line-height:1;}
 .sv.r{color:var(--rd);}.sv.g{color:var(--gn);}.sv.gy{color:var(--tx3);}.sv.o{color:var(--og);}
 
-/* ── SETOR OVERVIEW ── */
-.setor-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;}
-.setor-cell{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;}
-.sc-name{font-size:12px;font-family:var(--mn);color:var(--tx2);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sc-bar{height:5px;border-radius:3px;background:var(--sf2);margin-bottom:5px;overflow:hidden;}
-.sc-fill{height:5px;border-radius:3px;background:var(--gn);}
-.sc-nums{display:flex;justify-content:space-between;font-size:11px;color:var(--tx3);font-family:var(--mn);}
-
 /* ── ALERTS ── */
 .alert-box{border-radius:var(--r);padding:10px 14px;font-size:13px;font-family:var(--mn);margin-bottom:8px;display:flex;align-items:center;gap:8px;}
 .alert-box.rd{background:var(--rdb);color:var(--rd);border:1px solid var(--rdd);}
 .alert-box.og{background:var(--ogb);color:var(--og);border:1px solid var(--ogd);}
 
-/* ── PILLS ── */
+/* ── FILTER PILLS ── */
 .pills{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;}
 .pills::-webkit-scrollbar{display:none;}
 .pill{font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid var(--bd);background:var(--sf);color:var(--tx2);white-space:nowrap;cursor:pointer;font-family:var(--mn);flex-shrink:0;}
-.pill.on{background:var(--tx);color:#F4F3EF;border-color:var(--tx);}
+.pill.on{background:var(--tx);color:#fff;border-color:var(--tx);}
 
-/* ── TABS ── */
-.tabs{display:flex;gap:6px;margin-bottom:12px;border-bottom:1px solid var(--bd);}
-.tab{padding:8px 14px 10px;font-size:13px;cursor:pointer;color:var(--tx3);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500;}
-.tab.on{color:var(--tx);border-bottom-color:var(--tx);}
+/* ── KANBAN BOARD ── */
+.board-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:10px;margin:0 -14px;padding-left:14px;padding-right:14px;}
+.board-scroll::-webkit-scrollbar{height:7px;}
+.board-scroll::-webkit-scrollbar-thumb{background:var(--bd);border-radius:4px;}
+.board{display:flex;gap:10px;align-items:flex-start;min-width:min-content;}
+.col{background:var(--sf2);border-radius:var(--rl);padding:8px;width:255px;flex-shrink:0;min-height:120px;}
+.col.drag-over{outline:2px dashed var(--bl);outline-offset:-2px;}
+.col-head{display:flex;align-items:center;justify-content:space-between;padding:5px 7px 9px;}
+.col-title{font-size:12px;font-family:var(--mn);font-weight:500;color:var(--tx2);letter-spacing:.02em;text-transform:uppercase;}
+.col-count{font-size:11px;color:var(--tx2);background:var(--sf);border-radius:20px;padding:1px 9px;font-family:var(--mn);}
 
-/* ── SEC HDR ── */
-.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-.sec-title{font-size:11px;font-weight:600;color:var(--tx2);font-family:var(--mn);text-transform:uppercase;letter-spacing:.04em;}
-.btn-reload{font-size:11px;padding:4px 11px;border-radius:20px;background:var(--blb);color:var(--bl);border:1px solid var(--bld);cursor:pointer;font-family:var(--mn);}
+/* ── CARD ── */
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;margin-bottom:8px;cursor:grab;border-left-width:3px;}
+.card:active{cursor:grabbing;}
+.card.dragging{opacity:.4;}
+.card.alta{border-left-color:#D85A30;}
+.card.media{border-left-color:#EF9F27;}
+.card.normal{border-left-color:#1D9E75;}
+.card-title{font-size:13px;font-weight:500;color:var(--tx);line-height:1.4;margin-bottom:6px;}
+.card-desc{font-size:12px;color:var(--tx2);line-height:1.45;margin-bottom:7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.tags{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:7px;}
+.tag{font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--bd);color:var(--tx2);white-space:nowrap;font-family:var(--mn);}
+.tag.wa{background:var(--wab);color:var(--wa);border-color:var(--wad);}
+.tag.setor{background:var(--blb);color:var(--bl);border-color:var(--bld);}
+.tag.alta{background:var(--rdb);color:var(--rd);border-color:var(--rdd);}
+.tag.media{background:var(--ogb);color:var(--og);border-color:var(--ogd);}
+.tag.normal{background:var(--tlb);color:var(--tl);border-color:var(--tld);}
+.card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.card-meta{font-size:11px;color:var(--tx3);font-family:var(--mn);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.over{font-size:10px;padding:1px 7px;border-radius:20px;background:var(--rdb);color:var(--rd);font-family:var(--mn);}
+.card-move{display:flex;gap:4px;}
+.mv{font-size:14px;line-height:1;color:var(--tx3);background:var(--sf2);border:1px solid var(--bd);border-radius:6px;width:24px;height:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.mv:active{background:var(--bd);}
+.col-empty{font-size:12px;color:var(--tx3);text-align:center;padding:18px 8px;font-family:var(--mn);}
 
-/* ── CARDS ── */
-.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:13px 14px;margin-bottom:9px;}
-.card.pA{border-left:4px solid #C0392B;}
-.card.pM{border-left:4px solid #E67E22;}
-.card.pN{border-left:4px solid #27AE60;}
-.card.done-card{opacity:.65;}
-.cn{font-size:15px;font-weight:600;margin-bottom:3px;}
-.cm{font-size:13px;color:var(--tx2);line-height:1.5;margin-bottom:7px;}
-.obs-box{font-size:12px;color:var(--gn);background:var(--gnb);border:1px solid var(--gnd);border-radius:8px;padding:7px 10px;margin-bottom:7px;line-height:1.4;}
-.mt{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
-.tag{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--bd);color:var(--tx2);background:var(--sf2);font-family:var(--mn);}
-.tag.ts{background:var(--blb);border-color:var(--bld);color:var(--bl);}
-.tag.tA{background:var(--rdb);border-color:var(--rdd);color:var(--rd);}
-.tag.tM{background:var(--ogb);border-color:var(--ogd);color:var(--og);}
-.tag.tN{background:var(--gnb);border-color:var(--gnd);color:var(--gn);}
-.tag.ov{background:var(--rdb);border-color:var(--rdd);color:var(--rd);}
-.tag.arc{background:var(--pub);border-color:var(--pud);color:var(--pu);}
-.tag.rec{background:var(--blb);border-color:var(--bld);color:var(--bl);}
-.ct{font-size:11px;color:var(--tx3);font-family:var(--mn);}
-.card-btns{display:flex;gap:7px;flex-wrap:wrap;}
-.btn-done{flex:1;min-width:90px;padding:8px;border-radius:var(--r);cursor:pointer;background:var(--gnb);color:var(--gn);border:1px solid var(--gnd);font-weight:600;font-size:13px;text-align:center;}
-.btn-done:disabled{opacity:.4;cursor:not-allowed;}
-.btn-reopen{flex:1;min-width:70px;padding:8px;border-radius:var(--r);cursor:pointer;background:var(--ogb);color:var(--og);border:1px solid var(--ogd);font-weight:600;font-size:13px;}
-.btn-edit{padding:8px 13px;border-radius:var(--r);cursor:pointer;background:var(--blb);color:var(--bl);border:1px solid var(--bld);font-size:13px;}
-.btn-archive{padding:8px 13px;border-radius:var(--r);cursor:pointer;background:var(--pub);color:var(--pu);border:1px solid var(--pud);font-size:13px;}
-.btn-del{padding:8px 13px;border-radius:var(--r);cursor:pointer;background:var(--sf2);color:var(--tx3);border:1px solid var(--bd);font-size:13px;}
-.btn-convert{padding:8px 13px;border-radius:var(--r);cursor:pointer;background:var(--tlb);color:var(--tl);border:1px solid var(--tld);font-size:13px;}
-button:disabled{opacity:.4;cursor:not-allowed;}
-.empty{text-align:center;padding:40px 0;color:var(--tx3);font-size:14px;}
-.ei{font-size:36px;display:block;margin-bottom:8px;}
+/* ── RECORRENTES ── */
+.mes-nav{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px;}
+.mes-nav button{background:var(--sf);border:1px solid var(--bd);border-radius:50%;width:34px;height:34px;font-size:16px;cursor:pointer;color:var(--tx2);}
+.mes-label{font-size:15px;font-weight:600;font-family:var(--mn);min-width:150px;text-align:center;}
+.rec-setor{margin-bottom:16px;}
+.rec-setor-h{font-size:12px;font-family:var(--mn);color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;padding-left:2px;}
+.rec-item{background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:11px 13px;margin-bottom:7px;display:flex;align-items:center;gap:11px;cursor:pointer;}
+.rec-item.done{background:var(--gnb);border-color:var(--gnd);}
+.rec-check{width:20px;height:20px;border-radius:6px;border:2px solid var(--bd);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;}
+.rec-item.done .rec-check{background:var(--gn);border-color:var(--gn);}
+.rec-info{flex:1;}
+.rec-titulo{font-size:13px;color:var(--tx);line-height:1.35;}
+.rec-item.done .rec-titulo{color:var(--gn);text-decoration:line-through;opacity:.7;}
+.rec-periodo{font-size:11px;color:var(--tx3);font-family:var(--mn);margin-top:2px;}
 
 /* ── FAB ── */
 .fab{position:fixed;bottom:72px;right:18px;width:52px;height:52px;border-radius:50%;background:var(--tx);color:#F4F3EF;border:none;font-size:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:99;}
 
-/* ── SHEETS ── */
-.sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;flex-direction:column;justify-content:flex-end;}
+/* ── BOTTOM SHEETS ── */
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:flex-end;}
 .sheet.h{display:none;}
-.sheet-inner{background:var(--bg);border-radius:20px 20px 0 0;padding:18px 18px 38px;max-height:92vh;overflow-y:auto;}
+.sheet-inner{background:var(--bg);border-radius:20px 20px 0 0;padding:18px 18px 38px;max-height:92vh;overflow-y:auto;width:100%;max-width:760px;margin:0 auto;}
 .sheet-handle{width:38px;height:4px;background:var(--bd);border-radius:2px;margin:0 auto 16px;}
 .sheet-title{font-size:16px;font-weight:600;margin-bottom:14px;}
-.field{margin-bottom:11px;}
-.field label{font-size:11px;font-family:var(--mn);color:var(--tx2);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
-.field input,.field select,.field textarea{font-family:var(--sn);font-size:15px;padding:10px 12px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf);color:var(--tx);width:100%;}
-.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--tx);}
-.field textarea{resize:none;height:82px;}
-.field-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
-.btn-reg{width:100%;background:var(--tx);color:#F4F3EF;border:none;border-radius:var(--r);padding:13px;font-size:15px;font-weight:600;cursor:pointer;margin-top:6px;font-family:var(--sn);}
-.btn-reg:disabled{opacity:.5;cursor:not-allowed;}
-.btn-cancel{width:100%;background:transparent;color:var(--tx3);border:1px solid var(--bd);border-radius:var(--r);padding:11px;font-size:14px;cursor:pointer;margin-top:6px;font-family:var(--sn);}
-
-/* ── RECORRENTES ── */
-.mes-nav{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-.mes-nav button{background:none;border:1px solid var(--bd);border-radius:20px;padding:4px 12px;cursor:pointer;font-size:13px;color:var(--tx2);font-family:var(--mn);}
-.mes-label{font-size:14px;font-weight:600;font-family:var(--mn);color:var(--tx);}
-.rec-group{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:12px 14px;margin-bottom:10px;}
-.rec-group-title{font-size:12px;font-family:var(--mn);color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;}
-.rec-progress{font-size:11px;color:var(--gn);}
-.rec-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--sf2);}
-.rec-item:last-child{border-bottom:none;}
-.check-circle{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--bd);display:flex;align-items:center;justify-content:center;cursor:pointer;min-width:22px;flex-shrink:0;font-size:13px;}
-.check-circle.ck{background:var(--gnb);border-color:var(--gnd);color:var(--gn);}
-.rec-title{font-size:13px;flex:1;}
-.rec-title.done{text-decoration:line-through;color:var(--tx3);}
-.rec-period{font-size:11px;font-family:var(--mn);color:var(--tx3);}
+.field{margin-bottom:13px;}
+.field label{display:block;font-size:12px;font-family:var(--mn);color:var(--tx2);margin-bottom:5px;}
+.field input,.field select,.field textarea{width:100%;font-family:var(--sn);font-size:14px;padding:11px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf);color:var(--tx);}
+.field textarea{min-height:80px;resize:vertical;}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn-reg{width:100%;background:var(--tx);color:#fff;border:none;border-radius:var(--r);padding:13px;font-size:15px;font-weight:500;cursor:pointer;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:8px;}
+.btn-reg:disabled{opacity:.6;}
+.btn-sec{width:100%;background:transparent;color:var(--tx2);border:1px solid var(--bd);border-radius:var(--r);padding:11px;font-size:14px;cursor:pointer;margin-top:8px;}
+.btn-danger{color:var(--rd);border-color:var(--rdd);}
+.spin{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;display:inline-block;}
+@keyframes sp{to{transform:rotate(360deg);}}
 
 /* ── TOAST ── */
-.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--tx);color:#F4F3EF;padding:9px 20px;border-radius:20px;font-size:13px;font-family:var(--mn);z-index:300;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
-.toast.show{opacity:1;}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--tx);color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:300;white-space:nowrap;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
-/* ── CONFIG SHEET ── */
-.cfg-section{margin-bottom:16px;}
-.cfg-label{font-size:11px;font-family:var(--mn);color:var(--tx3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;}
-.cfg-url{font-size:12px;font-family:var(--mn);word-break:break-all;background:var(--sf2);padding:8px 10px;border-radius:8px;border:1px solid var(--bd);color:var(--tx2);}
-
-/* ── SPINNER ── */
-.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle;margin-right:5px;}
-@keyframes sp{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:40px 20px;color:var(--tx3);}
+.empty .ei{display:block;font-size:32px;margin-bottom:10px;opacity:.5;}
 </style>
 </head>
 <body>
 
-<!-- AUTH SCREEN -->
+<!-- ════════ AUTH SCREEN ════════ -->
 <div id="auth-screen">
   <div class="auth-logo"><span>▲</span>THELOS</div>
   <div class="auth-box">
-    <div class="auth-title">Painel Operacional</div>
-    <div class="auth-sub">Acesse com sua conta Google autorizada para continuar.</div>
+    <div class="auth-title">Painel de Tarefas</div>
+    <div class="auth-sub">Acesso restrito à equipe Thelos.<br/>Entre com sua conta Google autorizada.</div>
     <div id="g_id_onload"
          data-client_id="332476927471-6oi8qs6vd0fojnm4j8hum6buljtf2jvm.apps.googleusercontent.com"
          data-callback="handleCredential"
-         data-auto_select="true"
-         data-itp_support="true">
-    </div>
-    <div class="g_id_signin"
-         data-type="standard"
-         data-size="large"
-         data-theme="outline"
-         data-text="signin_with"
-         data-shape="rectangular"
-         data-locale="pt-BR"
-         data-logo_alignment="left">
-    </div>
+         data-auto_prompt="false"></div>
+    <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="signin_with" data-shape="pill" data-logo_alignment="left"></div>
     <div class="auth-denied" id="auth-denied">
-      ⛔ Acesso negado.<br/>
+      Acesso negado para<br/>
       <strong id="auth-denied-email"></strong><br/>
-      Este email não está autorizado.<br/>
-      Entre em contato com a gestão.
+      Esta conta não está autorizada. Fale com a gestão.
     </div>
     <div class="auth-user" id="auth-user"></div>
   </div>
 </div>
 
-<!-- HEADER -->
+<!-- ════════ HEADER ════════ -->
 <div class="hdr" id="main-app" style="display:none;">
   <div class="logo"><span>▲</span>THELOS</div>
-  <div style="display:flex;align-items:center;gap:10px;">
+  <div class="hdr-right">
     <div class="sy"><div class="dot" id="dot"></div><span id="sy-txt">conectando</span></div>
-    <span id="auth-user-hdr" style="font-family:var(--mn);font-size:11px;color:rgba(255,255,255,.5);"></span>
-    <button class="btn-cfg" style="font-family:var(--mn);font-size:11px;color:rgba(255,255,255,.5);background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:4px 10px;cursor:pointer;" onclick="openCfg()">config</button>
-    <button style="font-family:var(--mn);font-size:11px;color:rgba(255,255,255,.35);background:transparent;border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:4px 10px;cursor:pointer;" onclick="logout()">sair</button>
+    <button class="cfg-btn" onclick="openCfg()">config</button>
   </div>
 </div>
 
-<!-- BANNER URL -->
+<!-- ════════ BANNER CONFIG ════════ -->
 <div class="banner" id="banner">
-  <p>⚠ URL do script não configurada. O painel funciona offline mas não salva na planilha.</p>
+  <p>⚙ Conecte a planilha para sincronizar os dados.</p>
   <button class="btn-cfg-banner" onclick="openCfg()">Configurar</button>
 </div>
 
-<!-- CONTEÚDO PRINCIPAL -->
+<!-- ════════ PÁGINA: VISÃO GERAL ════════ -->
 <div class="wrap" id="page-gestor" style="display:none;">
   <div class="stats" id="stats-gestor"></div>
   <div id="alerts-gestor"></div>
-  <div class="sec-hdr"><div class="sec-title">Status por setor</div></div>
-  <div class="setor-grid" id="setor-grid"></div>
-  <div class="sec-hdr">
-    <div class="sec-title">Últimas tarefas abertas</div>
-    <button class="btn-reload" onclick="loadAll()">↻ Atualizar</button>
-  </div>
+  <div style="font-size:12px;font-family:var(--mn);color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin:16px 0 8px;">Status por setor</div>
+  <div class="setor-grid" id="setor-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px;"></div>
+  <div style="font-size:12px;font-family:var(--mn);color:var(--tx2);text-transform:uppercase;letter-spacing:.04em;margin:16px 0 8px;">Tarefas urgentes / atrasadas</div>
   <div id="lista-recente"></div>
 </div>
 
-<div class="wrap" id="page-triagem" style="display:none;">
-  <div class="sec-hdr">
-    <div class="sec-title">Triagem WhatsApp</div>
-    <button class="btn-reload" onclick="loadTriagem()">↻</button>
-  </div>
-  <div class="pills" id="pills-triagem"></div>
-  <div class="tabs">
-    <div class="tab on" id="t-o" onclick="stabT('o')">Em aberto</div>
-    <div class="tab" id="t-d" onclick="stabT('d')">Respondidos</div>
-    <div class="tab" id="t-a" onclick="stabT('a')">Arquivados</div>
-  </div>
-  <div id="lo"></div>
-  <div id="ld" style="display:none;"></div>
-  <div id="la" style="display:none;"></div>
-</div>
-
+<!-- ════════ PÁGINA: TAREFAS (KANBAN) ════════ -->
 <div class="wrap" id="page-tarefas" style="display:none;">
-  <div class="sec-hdr">
-    <div class="sec-title">Tarefas avulsas</div>
-    <button class="btn-reload" onclick="loadTarefas()">↻</button>
+  <div class="pills" id="pills-setor"></div>
+  <div class="board-scroll">
+    <div class="board" id="board"></div>
   </div>
-  <div class="pills" id="pills-tarefas"></div>
-  <div class="tabs">
-    <div class="tab on" id="tt-o" onclick="stabTar('o')">Em aberto</div>
-    <div class="tab" id="tt-d" onclick="stabTar('d')">Concluídas</div>
-  </div>
-  <div id="tar-o"></div>
-  <div id="tar-d" style="display:none;"></div>
 </div>
 
+<!-- ════════ PÁGINA: RECORRENTES ════════ -->
 <div class="wrap" id="page-rec" style="display:none;">
   <div class="mes-nav">
     <button onclick="prevMes()">‹</button>
     <div class="mes-label" id="mes-label"></div>
     <button onclick="nextMes()">›</button>
-    <button class="btn-reload" style="margin-left:auto;" onclick="loadRecorrentes()">↻</button>
   </div>
   <div id="rec-list"></div>
 </div>
 
-<!-- FAB -->
-<button class="fab" id="fab" onclick="openAdd()">+</button>
+<!-- ════════ FAB ════════ -->
+<button class="fab" id="fab" onclick="openAddTarefa()">+</button>
 
-<!-- BOTTOM NAV -->
+<!-- ════════ BOTTOM NAV ════════ -->
 <div class="bnav">
   <button class="bnav-btn on" id="nav-g" onclick="setPage('gestor')"><span class="bnav-icon">⊞</span>Visão geral</button>
-  <button class="bnav-btn" id="nav-t" onclick="setPage('triagem')"><span class="bnav-icon">💬</span>Triagem</button>
-  <button class="bnav-btn" id="nav-tar" onclick="setPage('tarefas')"><span class="bnav-icon">✓</span>Tarefas</button>
+  <button class="bnav-btn" id="nav-tar" onclick="setPage('tarefas')"><span class="bnav-icon">▤</span>Tarefas</button>
   <button class="bnav-btn" id="nav-r" onclick="setPage('rec')"><span class="bnav-icon">↻</span>Recorrentes</button>
 </div>
 
-<!-- SHEET: NOVA TRIAGEM -->
-<div class="sheet h" id="sheet-triagem">
-  <div class="sheet-inner">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">Nova mensagem — Triagem</div>
-    <div class="field"><label>Cliente / Contato</label><input type="text" id="f-cliente" placeholder="Nome do cliente"/></div>
-    <div class="field"><label>Setor responsável</label>
-      <select id="f-setor-t">
-        <option value="">Selecione...</option>
-        <option>Gestão</option><option>Fiscal/Contábil</option>
-        <option>Protocolo A</option><option>Protocolo B</option><option>DP / RH</option>
-      </select>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Prioridade</label>
-        <select id="f-prio-t">
-          <option value="Normal">Normal</option>
-          <option value="Média">Média</option>
-          <option value="Alta">Alta 🔴</option>
-        </select>
-      </div>
-      <div class="field"><label>Prazo</label><input type="text" id="f-prazo-t" placeholder="dd/mm/aaaa"/></div>
-    </div>
-    <div class="field"><label>Mensagem / pedido</label><textarea id="f-msg" placeholder="Descreva o que foi solicitado..."></textarea></div>
-    <button class="btn-reg" id="btn-reg-t" onclick="regTriagem()">Registrar</button>
-    <button class="btn-cancel" onclick="closeSheets()">Cancelar</button>
-  </div>
-</div>
-
-<!-- SHEET: NOVA TAREFA -->
+<!-- ════════ SHEET: NOVA / EDITAR TAREFA ════════ -->
 <div class="sheet h" id="sheet-tarefa">
   <div class="sheet-inner">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">Nova tarefa operacional</div>
-    <div class="field"><label>Título</label><input type="text" id="f-titulo" placeholder="Ex: Enviar SPED-ICMS..."/></div>
-    <div class="field"><label>Setor responsável</label>
-      <select id="f-setor-tar">
-        <option value="">Selecione...</option>
-        <option value="gestao">Gestão</option>
-        <option value="fiscal">Fiscal/Contábil</option>
-        <option value="protA">Protocolo A</option>
-        <option value="protB">Protocolo B</option>
-        <option value="dp">DP / RH</option>
-      </select>
-    </div>
+    <div class="sheet-title" id="sheet-tar-title">Nova tarefa</div>
+    <input type="hidden" id="f-id"/>
+    <div class="field"><label>Título *</label><input type="text" id="f-titulo" placeholder="Ex: Cliente pediu 2ª via do boleto"/></div>
     <div class="field-row">
+      <div class="field"><label>Setor *</label>
+        <select id="f-setor">
+          <option value="">Selecione</option>
+          <option value="fiscal">Fiscal / Contábil</option>
+          <option value="dp">DP / RH</option>
+          <option value="protA">Protocolo A</option>
+          <option value="protB">Protocolo B</option>
+          <option value="gestao">Gestão</option>
+        </select>
+      </div>
       <div class="field"><label>Prioridade</label>
-        <select id="f-prio-tar">
+        <select id="f-prio">
           <option value="normal">Normal</option>
           <option value="media">Média</option>
-          <option value="alta">Alta 🔴</option>
+          <option value="alta">Alta</option>
         </select>
       </div>
-      <div class="field"><label>Prazo</label><input type="text" id="f-prazo-tar" placeholder="dd/mm/aaaa"/></div>
-    </div>
-    <div class="field"><label>Responsável</label><input type="text" id="f-resp" placeholder="Nome da pessoa"/></div>
-    <div class="field"><label>Descrição / passo a passo</label><textarea id="f-desc" placeholder="Contexto ou instruções de execução..."></textarea></div>
-    <button class="btn-reg" id="btn-reg-tar" onclick="regTarefa()">Registrar tarefa</button>
-    <button class="btn-cancel" onclick="closeSheets()">Cancelar</button>
-  </div>
-</div>
-
-<!-- SHEET: EDITAR TRIAGEM -->
-<div class="sheet h" id="sheet-edit-t">
-  <div class="sheet-inner">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">Editar mensagem</div>
-    <input type="hidden" id="edit-t-id"/>
-    <div class="field"><label>Cliente</label><input type="text" id="edit-t-cliente"/></div>
-    <div class="field"><label>Setor</label>
-      <select id="edit-t-setor">
-        <option value="">Selecione...</option>
-        <option>Gestão</option><option>Fiscal/Contábil</option>
-        <option>Protocolo A</option><option>Protocolo B</option><option>DP / RH</option>
-      </select>
     </div>
     <div class="field-row">
-      <div class="field"><label>Prioridade</label>
-        <select id="edit-t-prio">
-          <option value="Normal">Normal</option><option value="Média">Média</option><option value="Alta">Alta</option>
+      <div class="field"><label>Origem</label>
+        <select id="f-origem">
+          <option value="Interno">Interno</option>
+          <option value="WhatsApp">WhatsApp</option>
         </select>
       </div>
-      <div class="field"><label>Prazo</label><input type="text" id="edit-t-prazo"/></div>
+      <div class="field"><label>Prazo</label><input type="text" id="f-prazo" placeholder="dd/mm/aaaa"/></div>
     </div>
-    <div class="field"><label>Mensagem</label><textarea id="edit-t-msg"></textarea></div>
-    <button class="btn-reg" id="btn-edit-t" onclick="saveEditT()">Salvar</button>
-    <button class="btn-cancel" onclick="closeSheets()">Cancelar</button>
+    <div class="field"><label>Responsável</label><input type="text" id="f-resp" placeholder="Nome da pessoa"/></div>
+    <div class="field"><label>Descrição / cliente / contexto</label><textarea id="f-desc" placeholder="Detalhe o pedido ou as instruções..."></textarea></div>
+    <button class="btn-reg" id="btn-reg-tar" onclick="salvarTarefa()">Salvar</button>
+    <button class="btn-sec btn-danger h" id="btn-del-tar" onclick="excluirTarefaAtual()">Excluir tarefa</button>
+    <button class="btn-sec" onclick="closeSheets()">Cancelar</button>
   </div>
 </div>
 
-<!-- SHEET: CONFIRMAR RESPOSTA -->
-<div class="sheet h" id="sheet-done-t">
-  <div class="sheet-inner">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">Registrar resposta</div>
-    <input type="hidden" id="done-t-id"/>
-    <div class="field"><label>Observação (opcional)</label><textarea id="done-t-obs" placeholder="Como foi resolvido..."></textarea></div>
-    <button class="btn-reg" id="btn-done-t" onclick="confirmDoneT()">✓ Confirmar respondido</button>
-    <button class="btn-cancel" onclick="closeSheets()">Cancelar</button>
-  </div>
-</div>
-
-<!-- SHEET: ESCOLHER TIPO -->
-<div class="sheet h" id="sheet-add">
-  <div class="sheet-inner">
-    <div class="sheet-handle"></div>
-    <div class="sheet-title">O que deseja registrar?</div>
-    <button class="btn-reg" style="margin-bottom:10px;" onclick="closeSheets();setTimeout(function(){openAddTriagem();},100)">💬 Mensagem WhatsApp</button>
-    <button class="btn-reg" style="background:var(--bl);margin-bottom:10px;" onclick="closeSheets();setTimeout(function(){openAddTarefa();},100)">✓ Tarefa operacional</button>
-    <button class="btn-cancel" onclick="closeSheets()">Cancelar</button>
-  </div>
-</div>
-
-<!-- SHEET: CONFIG -->
+<!-- ════════ SHEET: CONFIG ════════ -->
 <div class="sheet h" id="sheet-cfg">
   <div class="sheet-inner">
     <div class="sheet-handle"></div>
     <div class="sheet-title">Configuração</div>
-    <div class="cfg-section">
-      <div class="cfg-label">URL do Google Apps Script</div>
-      <input type="text" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:var(--mn);font-size:12px;padding:10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf);color:var(--tx);width:100%;"/>
-    </div>
-    <div class="cfg-section" style="background:var(--blb);border:1px solid var(--bld);border-radius:var(--r);padding:12px;font-size:12px;color:var(--bl);font-family:var(--mn);line-height:1.7;">
-      <strong>Como obter a URL:</strong><br/>
-      1. Abra o Google Sheets da Thelos<br/>
-      2. Extensões → Apps Script<br/>
-      3. Cole o arquivo thelos-script.gs<br/>
-      4. Implantar → Nova implantação<br/>
-      5. Tipo: Web App<br/>
-      6. Executar como: Eu<br/>
-      7. Acesso: Qualquer pessoa<br/>
-      8. Copie a URL e cole acima
+    <div class="field">
+      <label>URL do Apps Script (Web App)</label>
+      <input type="text" id="cfg-url" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:var(--mn);font-size:12px;"/>
     </div>
     <button class="btn-reg" onclick="saveCfg()">Salvar e conectar</button>
-    <button class="btn-cancel" onclick="closeSheets()">Fechar</button>
+    <button class="btn-sec" onclick="loadAll();closeSheets();">Recarregar dados</button>
+    <button class="btn-sec btn-danger" onclick="logout()">Sair da conta</button>
+    <button class="btn-sec" onclick="closeSheets()">Fechar</button>
   </div>
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script>
 // ============================================================
-//  CONFIGURAÇÃO — cole a URL do Apps Script aqui se preferir
-//  (ou configure pelo botão "config" no header)
+//  CONFIG & ESTADO
 // ============================================================
 var SCRIPT_URL = localStorage.getItem('thelos_url') || '';
-
-// ── DADOS ──
-var triagem = [];
 var tarefas = [];
 var recChecks = {};
 var currentPage = 'gestor';
-var tabT = 'o', tabTar = 'o';
-var filterT = '', filterTar = '';
+var filterSetor = '';
+var editId = null;
 var curMes = new Date().getMonth(), curAno = new Date().getFullYear();
 
 var MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 var SETORES = [
-  {id:'gestao',   nome:'Gestão',          icon:'🎯'},
-  {id:'fiscal',   nome:'Fiscal/Contábil', icon:'📊'},
-  {id:'protA',    nome:'Protocolo A',     icon:'📁'},
-  {id:'protB',    nome:'Protocolo B',     icon:'📋'},
-  {id:'dp',       nome:'DP / RH',         icon:'👥'},
+  {id:'gestao', nome:'Gestão',          icon:'🎯'},
+  {id:'fiscal', nome:'Fiscal/Contábil', icon:'📊'},
+  {id:'protA',  nome:'Protocolo A',     icon:'📁'},
+  {id:'protB',  nome:'Protocolo B',     icon:'📋'},
+  {id:'dp',     nome:'DP / RH',         icon:'👥'},
+];
+
+// Colunas do Kanban (status guardado na planilha)
+var COLS = [
+  {id:'afazer',     nome:'A fazer'},
+  {id:'andamento',  nome:'Em andamento'},
+  {id:'aguardando', nome:'Aguardando terceiros'},
+  {id:'concluido',  nome:'Concluído'}
 ];
 
 var RECORRENTES_BASE = [
@@ -514,678 +381,458 @@ var RECORRENTES_BASE = [
   {setor:'gestao',titulo:'Decisões estratégicas e multissetoriais',periodo:'Contínuo'},
 ];
 
-// ── STORAGE LOCAL (fallback offline) ──
-function saveLocal() {
+// ============================================================
+//  AUTH HANDLERS
+// ============================================================
+var EMAILS_OK = [
+  'theloscontabilidade@gmail.com','atendimento.thelos@gmail.com',
+  'theloscontabilidade.dp@gmail.com','agenda1.thelos@gmail.com',
+  'theloscontabilidade.protocolo@gmail.com','thelos.fiscal@gmail.com'
+];
+
+function parseJwt(token){
+  try { return JSON.parse(decodeURIComponent(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')).split('').map(function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join(''))); }
+  catch(e){ return null; }
+}
+
+function handleCredential(resp){
+  var info = parseJwt(resp.credential);
+  if(!info || !info.email){ return; }
+  var email = info.email.toLowerCase();
+  if(EMAILS_OK.indexOf(email) < 0){
+    document.getElementById('auth-denied').style.display='block';
+    document.getElementById('auth-denied-email').textContent = email;
+    return;
+  }
+  AUTH_TOKEN = resp.credential;
+  sessionStorage.setItem('thelos_auth', resp.credential);
+  sessionStorage.setItem('thelos_email', email);
+  entrarApp(email);
+}
+
+function entrarApp(email){
+  document.getElementById('auth-screen').classList.add('h');
+  document.getElementById('main-app').style.display='flex';
+  try { initTokenClient(email); agendarRenovacao(email); } catch(e){}
+  checkBanner();
+  setPage('gestor');
+  if(SCRIPT_URL) loadAll(); else { renderAll(); }
+}
+
+function logout(){
+  sessionStorage.clear();
+  location.reload();
+}
+
+window.handleCredential = handleCredential;
+
+// ============================================================
+//  STORAGE LOCAL (fallback offline)
+// ============================================================
+function saveLocal(){
   try {
-    localStorage.setItem('thelos_triagem', JSON.stringify(triagem));
     localStorage.setItem('thelos_tarefas', JSON.stringify(tarefas));
     localStorage.setItem('thelos_recchecks', JSON.stringify(recChecks));
-  } catch(e) {}
+  } catch(e){}
 }
-function loadLocal() {
-  try { triagem = JSON.parse(localStorage.getItem('thelos_triagem') || '[]'); } catch(e) { triagem = []; }
-  try { tarefas = JSON.parse(localStorage.getItem('thelos_tarefas') || '[]'); } catch(e) { tarefas = []; }
-  try { recChecks = JSON.parse(localStorage.getItem('thelos_recchecks') || '{}'); } catch(e) { recChecks = {}; }
+function loadLocal(){
+  try { tarefas = JSON.parse(localStorage.getItem('thelos_tarefas')||'[]'); } catch(e){ tarefas=[]; }
+  try { recChecks = JSON.parse(localStorage.getItem('thelos_recchecks')||'{}'); } catch(e){ recChecks={}; }
 }
 
-// ── API ──
-function get(params, ok, err) {
-  if (!SCRIPT_URL) { setStatus(false); if(err) err(); return; }
+// ============================================================
+//  API
+// ============================================================
+function get(params, ok, err){
+  if(!SCRIPT_URL){ setStatus(false); if(err) err(); return; }
   params.token = AUTH_TOKEN;
-  var url = SCRIPT_URL + '?';
   var parts = [];
-  for (var k in params) parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
-  url += parts.join('&');
-  fetch(url)
+  for(var k in params) parts.push(encodeURIComponent(k)+'='+encodeURIComponent(params[k]));
+  fetch(SCRIPT_URL + '?' + parts.join('&'))
     .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (d.error === 'NÃO AUTORIZADO') { setStatus(false); return; }
-      setStatus(true); if(ok) ok(d);
-    })
+    .then(function(d){ setStatus(true); if(ok) ok(d); })
     .catch(function(e){ setStatus(false); if(err) err(e); });
 }
-
-function post(params, ok, err) {
-  if (!SCRIPT_URL) { setStatus(false); if(err) err(); return; }
+function post(params, ok, err){
+  if(!SCRIPT_URL){ setStatus(false); if(err) err(); return; }
   params.token = AUTH_TOKEN;
   var fd = new FormData();
-  for (var k in params) fd.append(k, params[k]);
-  fetch(SCRIPT_URL, { method:'POST', body: fd })
+  for(var k in params) fd.append(k, params[k]);
+  fetch(SCRIPT_URL, { method:'POST', body:fd })
     .then(function(r){ return r.json(); })
-    .then(function(d){
-      if (d.error === 'NÃO AUTORIZADO') { setStatus(false); return; }
-      setStatus(true); if(ok) ok(d);
-    })
+    .then(function(d){ setStatus(true); if(ok) ok(d); })
     .catch(function(e){ setStatus(false); if(err) err(e); });
 }
 
-// ── STATUS ──
-function setStatus(online) {
-  var dot = document.getElementById('dot');
-  var txt = document.getElementById('sy-txt');
-  dot.className = 'dot' + (online ? '' : ' off');
-  txt.textContent = online ? 'conectado' : 'offline';
-}
-function setSpin() {
-  document.getElementById('dot').className = 'dot sp';
-  document.getElementById('sy-txt').textContent = 'sincronizando';
+// ── compat: status antigos → colunas Kanban ──
+function normStatus(s){
+  s = String(s||'').toLowerCase();
+  if(s==='open' || s==='' || s==='o' || s==='aberto') return 'afazer';
+  if(s==='done' || s==='d' || s==='concluida' || s==='concluído') return 'concluido';
+  if(COLS.some(function(c){return c.id===s;})) return s;
+  return 'afazer';
 }
 
-// ── BANNER ──
-function checkBanner() {
-  document.getElementById('banner').className = 'banner' + (SCRIPT_URL ? ' h' : '');
+// ============================================================
+//  STATUS / BANNER
+// ============================================================
+function setStatus(online){
+  document.getElementById('dot').className = 'dot' + (online?'':' off');
+  document.getElementById('sy-txt').textContent = online?'conectado':'offline';
+}
+function setSpin(){
+  document.getElementById('dot').className='dot sp';
+  document.getElementById('sy-txt').textContent='sincronizando';
+}
+function checkBanner(){
+  document.getElementById('banner').className = 'banner' + (SCRIPT_URL?' h':'');
 }
 
-// ── LOAD ALL ──
-function loadAll() {
+// ============================================================
+//  LOAD
+// ============================================================
+function loadAll(){
   setSpin();
   loadLocal();
-  loadTriagem();
   loadTarefas();
   loadRecorrentes();
 }
-
-function loadTriagem() {
-  get({ action: 'listar_triagem' }, function(d) {
-    if (d.success && d.data) {
-      triagem = d.data.map(function(m) {
-        var s = m.status === 'Respondido' ? 'd' : m.status === 'Arquivado' ? 'a' : 'o';
-        return { id: m.id, cliente: m.cliente, msg: m.msg, setor: m.setor,
-                 prio: m.prio || 'Normal', prazo: m.prazo, status: s,
-                 obs: m.obs || '', ts: new Date(m.data).getTime() || Date.now() };
+function loadTarefas(){
+  get({ action:'listar_tarefas' }, function(d){
+    if(d.success && d.data){
+      tarefas = d.data.map(function(t){
+        return { id:t.id, titulo:t.titulo, setor:t.setor, prio:(t.prio||'normal').toLowerCase(),
+                 prazo:t.prazo, resp:t.resp||'', desc:t.desc||'',
+                 origem:t.origem || (String(t.desc||'').indexOf('WhatsApp')>=0?'WhatsApp':'Interno'),
+                 status:normStatus(t.status), ts:parseInt(t.ts)||Date.now() };
       });
       saveLocal();
     }
-    renderTriagem(); renderGestor();
-  }, function() { renderTriagem(); renderGestor(); });
+    renderAll();
+  }, function(){ renderAll(); });
 }
-
-function loadTarefas() {
-  get({ action: 'listar_tarefas' }, function(d) {
-    if (d.success && d.data) {
-      tarefas = d.data.map(function(t) {
-        return { id: t.id, titulo: t.titulo, setor: t.setor,
-                 prio: t.prio || 'normal', prazo: t.prazo,
-                 resp: t.resp, desc: t.desc,
-                 status: t.status || 'open', ts: parseInt(t.ts) || Date.now() };
-      });
-      saveLocal();
-    }
-    renderTarefas(); renderGestor();
-  }, function() { renderTarefas(); renderGestor(); });
-}
-
-function loadRecorrentes() {
-  get({ action: 'listar_recorrentes' }, function(d) {
-    if (d.success && d.data) {
+function loadRecorrentes(){
+  get({ action:'listar_recorrentes' }, function(d){
+    if(d.success && d.data){
       recChecks = {};
-      d.data.forEach(function(r) {
-        recChecks[r.chave] = r.concluido === 'sim';
-      });
+      d.data.forEach(function(r){ recChecks[r.chave] = r.concluido==='sim'; });
       saveLocal();
     }
-    renderRecorrentes();
-  }, function() { renderRecorrentes(); });
+    renderRec();
+  }, function(){ renderRec(); });
 }
 
-// ── NAVEGAÇÃO ──
-function setPage(p) {
+// ============================================================
+//  NAVEGAÇÃO
+// ============================================================
+function setPage(p){
   currentPage = p;
-  ['gestor','triagem','tarefas','rec'].forEach(function(x) {
-    document.getElementById('page-' + x).style.display = p === x ? 'block' : 'none';
-    document.getElementById('nav-' + (x === 'gestor' ? 'g' : x === 'tarefas' ? 'tar' : x === 'rec' ? 'r' : 't')).className = 'bnav-btn' + (p === x ? ' on' : '');
+  ['gestor','tarefas','rec'].forEach(function(x){
+    document.getElementById('page-'+x).style.display = p===x?'block':'none';
   });
-  document.getElementById('fab').style.display = p === 'rec' ? 'none' : 'flex';
+  document.getElementById('nav-g').className   = 'bnav-btn' + (p==='gestor'?' on':'');
+  document.getElementById('nav-tar').className = 'bnav-btn' + (p==='tarefas'?' on':'');
+  document.getElementById('nav-r').className   = 'bnav-btn' + (p==='rec'?' on':'');
+  document.getElementById('fab').style.display = p==='rec'?'none':'flex';
 }
 
-// ── HELPERS ──
-function ago(ts) {
-  var d = Date.now() - ts, h = Math.floor(d/3600000), m = Math.floor(d/60000);
-  if (h >= 24) return Math.floor(h/24) + 'd';
-  if (h >= 1) return h + 'h';
-  return m + 'min';
-}
-function over(ts) { return (Date.now() - ts) > 86400000; }
-function uid() { return Date.now() + Math.random().toString(36).slice(2,6); }
-function setorNome(id) { var s = SETORES.find(function(x){return x.id===id;}); return s ? s.nome : id; }
-function mesKey() { return curAno + '-' + (curMes + 1); }
+// ============================================================
+//  HELPERS
+// ============================================================
+function ago(ts){ var d=Date.now()-ts,h=Math.floor(d/3600000),m=Math.floor(d/60000);
+  if(h>=24) return Math.floor(h/24)+'d'; if(h>=1) return h+'h'; return Math.max(m,1)+'min'; }
+function overduePrazo(t){ if(t.status==='concluido'||!t.prazo) return false;
+  var p=String(t.prazo).split('/'); if(p.length!==3) return false;
+  return new Date(p[2],p[1]-1,p[0]) < new Date(); }
+function uid(){ return Date.now()+''+Math.random().toString(36).slice(2,6); }
+function setorNome(id){ var s=SETORES.find(function(x){return x.id===id;}); return s?s.nome:id; }
+function setorAbbr(id){ return ({fiscal:'Fiscal',dp:'DP',protA:'Prot. A',protB:'Prot. B',gestao:'Gestão'})[id]||id; }
+function mesKey(){ return curAno+'-'+(curMes+1); }
+function prioLabel(p){ return p==='alta'?'Alta':p==='media'?'Média':'Normal'; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-// ── TOAST ──
-function toast(msg, type) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast show';
-  setTimeout(function(){ t.className = 'toast'; }, 2500);
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show';
+  setTimeout(function(){ t.className='toast'; },2500);
 }
 
-// ── SHEETS ──
-function closeSheets() {
-  document.querySelectorAll('.sheet').forEach(function(s){ s.classList.add('h'); });
+// ============================================================
+//  SHEETS
+// ============================================================
+function closeSheets(){ document.querySelectorAll('.sheet').forEach(function(s){ s.classList.add('h'); }); }
+function openCfg(){ document.getElementById('cfg-url').value=SCRIPT_URL; closeSheets(); document.getElementById('sheet-cfg').classList.remove('h'); }
+function saveCfg(){
+  var url=document.getElementById('cfg-url').value.trim();
+  if(!url){ toast('Cole a URL do Apps Script'); return; }
+  SCRIPT_URL=url; localStorage.setItem('thelos_url',url);
+  closeSheets(); checkBanner(); loadAll(); toast('Conectado!');
 }
-function openAdd() {
-  closeSheets();
-  document.getElementById('sheet-add').classList.remove('h');
-}
-function openAddTriagem() {
-  closeSheets();
-  document.getElementById('sheet-triagem').classList.remove('h');
-}
-function openAddTarefa() {
+
+function openAddTarefa(){
+  editId=null;
+  document.getElementById('sheet-tar-title').textContent='Nova tarefa';
+  document.getElementById('f-id').value='';
+  ['f-titulo','f-prazo','f-resp','f-desc'].forEach(function(x){ document.getElementById(x).value=''; });
+  document.getElementById('f-setor').value='';
+  document.getElementById('f-prio').value='normal';
+  document.getElementById('f-origem').value='Interno';
+  document.getElementById('btn-del-tar').classList.add('h');
   closeSheets();
   document.getElementById('sheet-tarefa').classList.remove('h');
 }
-function openCfg() {
-  document.getElementById('cfg-url').value = SCRIPT_URL;
-  document.getElementById('sheet-cfg').classList.remove('h');
-}
-function saveCfg() {
-  var url = document.getElementById('cfg-url').value.trim();
-  if (!url) { toast('Cole a URL do Apps Script', 'err'); return; }
-  SCRIPT_URL = url;
-  localStorage.setItem('thelos_url', url);
-  closeSheets();
-  checkBanner();
-  loadAll();
-  toast('Conectado!', 'ok');
-}
-
-// ── REGISTRAR TRIAGEM ──
-function regTriagem() {
-  var cliente = document.getElementById('f-cliente').value.trim();
-  var msg = document.getElementById('f-msg').value.trim();
-  var setor = document.getElementById('f-setor-t').value;
-  if (!cliente || !msg) { toast('Preencha cliente e mensagem', 'err'); return; }
-  var btn = document.getElementById('btn-reg-t');
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Registrando...';
-  var id = uid();
-  var now = new Date().toLocaleString('pt-BR');
-  var item = { id: id, cliente: cliente, msg: msg, setor: setor,
-               prio: document.getElementById('f-prio-t').value,
-               prazo: document.getElementById('f-prazo-t').value,
-               status: 'o', obs: '', ts: Date.now() };
-  triagem.unshift(item);
-  saveLocal(); renderTriagem(); renderGestor();
-  post({ action:'triagem_adicionar', id:id, cliente:cliente, msg:msg,
-         setor:setor, prio:item.prio, prazo:item.prazo, data:now },
-    function() {
-      btn.disabled = false; btn.textContent = 'Registrar';
-      closeSheets();
-      ['f-cliente','f-msg','f-prazo-t'].forEach(function(x){ document.getElementById(x).value=''; });
-      document.getElementById('f-setor-t').value='';
-      document.getElementById('f-prio-t').value='Normal';
-      toast('Mensagem registrada ✓', 'ok');
-    },
-    function() { btn.disabled = false; btn.textContent = 'Registrar'; toast('Salvo offline', ''); }
-  );
-}
-
-// ── REGISTRAR TAREFA ──
-function regTarefa() {
-  var titulo = document.getElementById('f-titulo').value.trim();
-  var setor = document.getElementById('f-setor-tar').value;
-  if (!titulo || !setor) { toast('Preencha título e setor', 'err'); return; }
-  var btn = document.getElementById('btn-reg-tar');
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Registrando...';
-  var id = uid();
-  var item = { id: id, titulo: titulo, setor: setor,
-               prio: document.getElementById('f-prio-tar').value,
-               prazo: document.getElementById('f-prazo-tar').value,
-               resp: document.getElementById('f-resp').value.trim(),
-               desc: document.getElementById('f-desc').value.trim(),
-               status: 'open', ts: Date.now() };
-  tarefas.unshift(item);
-  saveLocal(); renderTarefas(); renderGestor();
-  post({ action:'tarefa_adicionar', id:id, titulo:titulo, setor:setor,
-         prio:item.prio, prazo:item.prazo, resp:item.resp, desc:item.desc, ts:item.ts },
-    function() {
-      btn.disabled = false; btn.textContent = 'Registrar tarefa';
-      closeSheets();
-      ['f-titulo','f-prazo-tar','f-resp','f-desc'].forEach(function(x){ document.getElementById(x).value=''; });
-      document.getElementById('f-setor-tar').value='';
-      document.getElementById('f-prio-tar').value='normal';
-      toast('Tarefa registrada ✓', 'ok');
-    },
-    function() { btn.disabled = false; btn.textContent = 'Registrar tarefa'; toast('Salvo offline', ''); }
-  );
-}
-
-// ── TRIAGEM: AÇÕES ──
-function markDoneT(id) {
-  document.getElementById('done-t-id').value = id;
-  document.getElementById('done-t-obs').value = '';
-  closeSheets();
-  document.getElementById('sheet-done-t').classList.remove('h');
-}
-function confirmDoneT() {
-  var id = document.getElementById('done-t-id').value;
-  var obs = document.getElementById('done-t-obs').value.trim();
-  var btn = document.getElementById('btn-done-t');
-  btn.disabled = true;
-  triagem = triagem.map(function(m){ return m.id===id ? Object.assign({},m,{status:'d',obs:obs}) : m; });
-  saveLocal(); renderTriagem(); renderGestor();
-  post({ action:'triagem_atualizar', id:id, status:'Respondido', obs:obs },
-    function(){ btn.disabled=false; closeSheets(); toast('Respondido ✓','ok'); },
-    function(){ btn.disabled=false; toast('Salvo offline',''); }
-  );
-}
-function archiveT(id) {
-  triagem = triagem.map(function(m){ return m.id===id ? Object.assign({},m,{status:'a'}) : m; });
-  saveLocal(); renderTriagem(); renderGestor();
-  post({ action:'triagem_atualizar', id:id, status:'Arquivado' }, null, null);
-  toast('Arquivado','ok');
-}
-function reopenT(id) {
-  triagem = triagem.map(function(m){ return m.id===id ? Object.assign({},m,{status:'o'}) : m; });
-  saveLocal(); renderTriagem(); renderGestor();
-  post({ action:'triagem_atualizar', id:id, status:'Em aberto' }, null, null);
-}
-function delT(id) {
-  if (!confirm('Excluir esta mensagem?')) return;
-  triagem = triagem.filter(function(m){ return m.id!==id; });
-  saveLocal(); renderTriagem(); renderGestor();
-  post({ action:'triagem_excluir', id:id }, null, null);
-}
-function openEditT(id) {
-  var m = triagem.find(function(x){ return x.id===id; });
-  if (!m) return;
-  document.getElementById('edit-t-id').value = id;
-  document.getElementById('edit-t-cliente').value = m.cliente;
-  document.getElementById('edit-t-msg').value = m.msg;
-  document.getElementById('edit-t-setor').value = m.setor || '';
-  document.getElementById('edit-t-prio').value = m.prio || 'Normal';
-  document.getElementById('edit-t-prazo').value = m.prazo || '';
-  closeSheets();
-  document.getElementById('sheet-edit-t').classList.remove('h');
-}
-function saveEditT() {
-  var id = document.getElementById('edit-t-id').value;
-  var cliente = document.getElementById('edit-t-cliente').value.trim();
-  var msg = document.getElementById('edit-t-msg').value.trim();
-  var setor = document.getElementById('edit-t-setor').value;
-  var prio = document.getElementById('edit-t-prio').value;
-  var prazo = document.getElementById('edit-t-prazo').value;
-  triagem = triagem.map(function(m){ return m.id===id ? Object.assign({},m,{cliente:cliente,msg:msg,setor:setor,prio:prio,prazo:prazo}) : m; });
-  saveLocal(); renderTriagem();
-  post({ action:'triagem_editar', id:id, cliente:cliente, msg:msg, setor:setor, prio:prio, prazo:prazo },
-    function(){ closeSheets(); toast('Atualizado ✓','ok'); }, null);
-}
-
-// ── TRIAGEM: CONVERTER PARA TAREFA ──
-function converterEmTarefa(id) {
-  var m = triagem.find(function(x){ return x.id===id; });
-  if (!m) return;
-  document.getElementById('f-titulo').value = m.cliente + ' — ' + m.msg.slice(0,50);
-  document.getElementById('f-setor-tar').value = '';
-  document.getElementById('f-desc').value = m.msg;
+function openEditTarefa(id){
+  var t=tarefas.find(function(x){return x.id===id;});
+  if(!t) return;
+  editId=id;
+  document.getElementById('sheet-tar-title').textContent='Editar tarefa';
+  document.getElementById('f-id').value=id;
+  document.getElementById('f-titulo').value=t.titulo;
+  document.getElementById('f-setor').value=t.setor||'';
+  document.getElementById('f-prio').value=t.prio||'normal';
+  document.getElementById('f-origem').value=t.origem||'Interno';
+  document.getElementById('f-prazo').value=t.prazo||'';
+  document.getElementById('f-resp').value=t.resp||'';
+  document.getElementById('f-desc').value=t.desc||'';
+  document.getElementById('btn-del-tar').classList.remove('h');
   closeSheets();
   document.getElementById('sheet-tarefa').classList.remove('h');
 }
 
-// ── TAREFAS: AÇÕES ──
-function doneTar(id) {
-  tarefas = tarefas.map(function(t){ return t.id===id ? Object.assign({},t,{status:'done'}) : t; });
-  saveLocal(); renderTarefas(); renderGestor();
-  post({ action:'tarefa_atualizar', id:id, status:'done' }, function(){ toast('Concluído ✓','ok'); }, null);
+function salvarTarefa(){
+  var titulo=document.getElementById('f-titulo').value.trim();
+  var setor=document.getElementById('f-setor').value;
+  if(!titulo||!setor){ toast('Preencha título e setor'); return; }
+  var btn=document.getElementById('btn-reg-tar');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Salvando...';
+  var dados={
+    titulo:titulo, setor:setor,
+    prio:document.getElementById('f-prio').value,
+    origem:document.getElementById('f-origem').value,
+    prazo:document.getElementById('f-prazo').value.trim(),
+    resp:document.getElementById('f-resp').value.trim(),
+    desc:document.getElementById('f-desc').value.trim()
+  };
+  if(editId){
+    tarefas=tarefas.map(function(t){ return t.id===editId?Object.assign({},t,dados):t; });
+    saveLocal(); renderAll();
+    post(Object.assign({action:'tarefa_editar', id:editId}, dados),
+      function(){ btn.disabled=false; btn.textContent='Salvar'; closeSheets(); toast('Atualizado ✓'); },
+      function(){ btn.disabled=false; btn.textContent='Salvar'; closeSheets(); toast('Salvo offline'); });
+  } else {
+    var id=uid(), ts=Date.now();
+    var item=Object.assign({id:id, status:'afazer', ts:ts}, dados);
+    tarefas.unshift(item);
+    saveLocal(); renderAll();
+    post(Object.assign({action:'tarefa_adicionar', id:id, ts:ts}, dados),
+      function(){ btn.disabled=false; btn.textContent='Salvar'; closeSheets(); toast('Tarefa criada ✓'); },
+      function(){ btn.disabled=false; btn.textContent='Salvar'; closeSheets(); toast('Salvo offline'); });
+  }
 }
-function reopenTar(id) {
-  tarefas = tarefas.map(function(t){ return t.id===id ? Object.assign({},t,{status:'open'}) : t; });
-  saveLocal(); renderTarefas(); renderGestor();
-  post({ action:'tarefa_atualizar', id:id, status:'open' }, null, null);
-}
-function delTar(id) {
-  if (!confirm('Excluir esta tarefa?')) return;
-  tarefas = tarefas.filter(function(t){ return t.id!==id; });
-  saveLocal(); renderTarefas(); renderGestor();
-  post({ action:'tarefa_excluir', id:id }, null, null);
-}
 
-// ── RECORRENTES ──
-function prevMes(){ curMes--; if(curMes<0){curMes=11;curAno--;} renderRecorrentes(); }
-function nextMes(){ curMes++; if(curMes>11){curMes=0;curAno++;} renderRecorrentes(); }
-
-function toggleRec(setor, titulo, periodo) {
-  var key = mesKey() + '|' + setor + '|' + titulo;
-  var val = !recChecks[key];
-  recChecks[key] = val;
-  saveLocal(); renderRecorrentes(); renderGestor();
-  post({ action:'rec_check', chave:key, setor:setor, titulo:titulo,
-         periodo:periodo, mesAno:mesKey(), concluido: val ? 'sim' : 'nao' }, null, null);
+function excluirTarefaAtual(){
+  if(!editId) return;
+  if(!confirm('Excluir esta tarefa?')) return;
+  var id=editId;
+  tarefas=tarefas.filter(function(t){ return t.id!==id; });
+  saveLocal(); renderAll(); closeSheets();
+  post({action:'tarefa_excluir', id:id}, null, null);
+  toast('Excluída');
 }
 
-// ── RENDER: GESTOR ──
-function renderGestor() {
-  var openT = triagem.filter(function(m){ return m.status==='o'; }).length;
-  var doneT = triagem.filter(function(m){ return m.status==='d'; }).length;
-  var openTar = tarefas.filter(function(t){ return t.status==='open'; }).length;
-  var doneTar2 = tarefas.filter(function(t){ return t.status==='done'; }).length;
-  var mk = mesKey();
-  var recTotal = RECORRENTES_BASE.length;
-  var recDone = RECORRENTES_BASE.filter(function(r){ return recChecks[mk+'|'+r.setor+'|'+r.titulo]; }).length;
+// ── mover card entre colunas ──
+function moveTarefa(id, novoStatus){
+  tarefas=tarefas.map(function(t){
+    if(t.id!==id) return t;
+    var upd=Object.assign({},t,{status:novoStatus});
+    return upd;
+  });
+  saveLocal(); renderAll();
+  post({action:'tarefa_atualizar', id:id, status:novoStatus}, null, null);
+}
 
-  document.getElementById('stats-gestor').innerHTML =
-    stat('Triagem aberta', openT, 'r') +
-    stat('Respondidas', doneT, 'g') +
-    stat('Tarefas abertas', openTar, openTar > 0 ? 'o' : 'g') +
-    stat('Recorrentes ' + MESES[curMes].slice(0,3), recDone + '/' + recTotal, 'gy');
+// ============================================================
+//  RENDER — KANBAN
+// ============================================================
+function setorTag(s){ return s?'<span class="tag setor">'+esc(setorAbbr(s))+'</span>':''; }
 
-  var alerts = '';
-  var atrasadas = triagem.filter(function(m){ return m.status==='o' && over(m.ts); });
-  var urgentes = tarefas.filter(function(t){ return t.status==='open' && t.prio==='alta'; });
-  if (atrasadas.length) alerts += '<div class="alert-box rd">🔴 ' + atrasadas.length + ' mensagem(ns) sem resposta há +24h</div>';
-  if (urgentes.length) alerts += '<div class="alert-box og">⚠ ' + urgentes.length + ' tarefa(s) de alta prioridade em aberto</div>';
-  document.getElementById('alerts-gestor').innerHTML = alerts;
+function cardHTML(t){
+  var idx = COLS.findIndex(function(c){return c.id===t.status;});
+  var canLeft = idx>0, canRight = idx<COLS.length-1;
+  return '<div class="card '+t.prio+'" draggable="true" data-id="'+t.id+'" onclick="if(!window._dragged)openEditTarefa(\''+t.id+'\')">'
+    + '<div class="card-title">'+esc(t.titulo)+'</div>'
+    + (t.desc?'<div class="card-desc">'+esc(t.desc)+'</div>':'')
+    + '<div class="tags">'
+      + (t.origem==='WhatsApp'?'<span class="tag wa">✆ WhatsApp</span>':'')
+      + setorTag(t.setor)
+      + '<span class="tag '+t.prio+'">'+prioLabel(t.prio)+'</span>'
+      + (t.resp?'<span class="tag">'+esc(t.resp)+'</span>':'')
+    + '</div>'
+    + '<div class="card-foot">'
+      + '<span class="card-meta">'
+        + (t.prazo?'⚑ '+esc(t.prazo):ago(t.ts)+' atrás')
+        + (overduePrazo(t)?' <span class="over">vencido</span>':'')
+      + '</span>'
+      + '<span class="card-move">'
+        + (canLeft?'<button class="mv" onclick="event.stopPropagation();moveTarefa(\''+t.id+'\',\''+COLS[idx-1].id+'\')">‹</button>':'')
+        + (canRight?'<button class="mv" onclick="event.stopPropagation();moveTarefa(\''+t.id+'\',\''+COLS[idx+1].id+'\')">›</button>':'')
+      + '</span>'
+    + '</div>'
+  + '</div>';
+}
 
-  var grid = SETORES.map(function(s) {
-    var tOpen = tarefas.filter(function(t){ return t.setor===s.id && t.status==='open'; }).length;
-    var tDone = tarefas.filter(function(t){ return t.setor===s.id && t.status==='done'; }).length;
-    var total = tOpen + tDone;
-    var pct = total > 0 ? Math.round(tDone / total * 100) : 0;
-    var recS = RECORRENTES_BASE.filter(function(r){ return r.setor===s.id; });
-    var recD = recS.filter(function(r){ return recChecks[mk+'|'+r.setor+'|'+r.titulo]; }).length;
-    return '<div class="setor-cell">'
-      + '<div class="sc-name">' + s.icon + ' ' + s.nome + '</div>'
-      + '<div class="sc-bar"><div class="sc-fill" style="width:' + pct + '%"></div></div>'
-      + '<div class="sc-nums"><span>' + tOpen + ' abertas</span><span>' + recD + '/' + recS.length + ' rec.</span></div>'
+function renderBoard(){
+  var lista = filterSetor ? tarefas.filter(function(t){return t.setor===filterSetor;}) : tarefas;
+  var board=document.getElementById('board');
+  board.innerHTML = COLS.map(function(c){
+    var items=lista.filter(function(t){return t.status===c.id;})
+      .sort(function(a,b){ var pr={alta:0,media:1,normal:2}; return (pr[a.prio]-pr[b.prio])||(b.ts-a.ts); });
+    return '<div class="col" data-col="'+c.id+'">'
+      + '<div class="col-head"><span class="col-title">'+c.nome+'</span><span class="col-count">'+items.length+'</span></div>'
+      + (items.length?items.map(cardHTML).join(''):'<div class="col-empty">vazio</div>')
       + '</div>';
   }).join('');
-  document.getElementById('setor-grid').innerHTML = grid;
+  wireDrag();
+}
 
-  var recentes = tarefas.filter(function(t){ return t.status==='open'; }).slice(0, 5);
-  var triagemOpen = triagem.filter(function(m){ return m.status==='o'; }).slice(0, 3);
-  var combined = recentes.map(function(t){
-    return cardTarefa(t, false);
-  }).join('') + triagemOpen.map(function(m){
-    return cardTriagem(m, 'o');
+function renderPills(){
+  var pills='<div class="pill'+(filterSetor===''?' on':'')+'" onclick="setFilter(\'\')">Todos</div>';
+  pills += SETORES.map(function(s){
+    return '<div class="pill'+(filterSetor===s.id?' on':'')+'" onclick="setFilter(\''+s.id+'\')">'+s.icon+' '+setorAbbr(s.id)+'</div>';
   }).join('');
-  document.getElementById('lista-recente').innerHTML = combined || '<div class="empty"><span class="ei">✓</span>Tudo em dia!</div>';
+  document.getElementById('pills-setor').innerHTML=pills;
 }
+function setFilter(s){ filterSetor=s; renderPills(); renderBoard(); }
 
-function stat(label, val, cls) {
-  return '<div class="stat"><div class="slb">' + label + '</div><div class="sv ' + cls + '">' + val + '</div></div>';
-}
-
-// ── RENDER: TRIAGEM ──
-function stabT(t) {
-  tabT = t;
-  ['o','d','a'].forEach(function(x){
-    document.getElementById('t-'+x).className = 'tab' + (t===x?' on':'');
-    var el = document.getElementById(x==='o'?'lo':x==='d'?'ld':'la');
-    if(el) el.style.display = t===x ? 'block' : 'none';
+// ── drag & drop ──
+var dragId=null;
+function wireDrag(){
+  document.querySelectorAll('.card').forEach(function(card){
+    card.addEventListener('dragstart',function(e){ dragId=card.dataset.id; window._dragged=true; card.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+    card.addEventListener('dragend',function(){ card.classList.remove('dragging'); document.querySelectorAll('.col').forEach(function(c){c.classList.remove('drag-over');}); setTimeout(function(){window._dragged=false;},50); });
+  });
+  document.querySelectorAll('.col').forEach(function(col){
+    col.addEventListener('dragover',function(e){ e.preventDefault(); col.classList.add('drag-over'); });
+    col.addEventListener('dragleave',function(){ col.classList.remove('drag-over'); });
+    col.addEventListener('drop',function(e){ e.preventDefault();
+      if(dragId) moveTarefa(dragId, col.dataset.col);
+      dragId=null;
+    });
   });
 }
 
-function renderTriagem() {
-  var setores = [...new Set(triagem.map(function(m){ return m.setor; }).filter(Boolean))];
-  var pillsHtml = '<div class="pill' + (filterT===''?' on':'') + '" onclick="setFilterT(this,\'\')">Todos</div>'
-    + setores.map(function(s){ return '<div class="pill' + (filterT===s?' on':'') + '" onclick="setFilterT(this,\'' + s + '\')">' + s + '</div>'; }).join('');
-  document.getElementById('pills-triagem').innerHTML = pillsHtml;
+// ============================================================
+//  RENDER — VISÃO GERAL
+// ============================================================
+function stat(label,val,cls){ return '<div class="stat"><div class="slb">'+label+'</div><div class="sv '+(cls||'')+'">'+val+'</div></div>'; }
 
-  var list = triagem.filter(function(m){ return !filterT || m.setor===filterT; });
-  var o = list.filter(function(m){ return m.status==='o'; });
-  var d = list.filter(function(m){ return m.status==='d'; });
-  var a = list.filter(function(m){ return m.status==='a'; });
-  document.getElementById('lo').innerHTML = o.length ? o.map(function(m){ return cardTriagem(m,'o'); }).join('') : '<div class="empty"><span class="ei">✓</span>Nenhuma em aberto</div>';
-  document.getElementById('ld').innerHTML = d.length ? d.map(function(m){ return cardTriagem(m,'d'); }).join('') : '<div class="empty">Nenhuma respondida</div>';
-  document.getElementById('la').innerHTML = a.length ? a.map(function(m){ return cardTriagem(m,'a'); }).join('') : '<div class="empty">Nenhuma arquivada</div>';
+function renderGestor(){
+  var total=tarefas.length;
+  var afazer=tarefas.filter(function(t){return t.status==='afazer';}).length;
+  var andam=tarefas.filter(function(t){return t.status==='andamento'||t.status==='aguardando';}).length;
+  var done=tarefas.filter(function(t){return t.status==='concluido';}).length;
+  var mk=mesKey();
+  var recTotal=RECORRENTES_BASE.length;
+  var recDone=RECORRENTES_BASE.filter(function(r){return recChecks[mk+'|'+r.setor+'|'+r.titulo];}).length;
+
+  document.getElementById('stats-gestor').innerHTML =
+    stat('A fazer', afazer, afazer>0?'r':'g') +
+    stat('Em curso', andam, 'o') +
+    stat('Concluídas', done, 'g') +
+    stat('Recorr. '+MESES[curMes].slice(0,3), recDone+'/'+recTotal, 'gy');
+
+  var alerts='';
+  var atrasadas=tarefas.filter(function(t){return overduePrazo(t);});
+  var urgentes=tarefas.filter(function(t){return t.status!=='concluido'&&t.prio==='alta';});
+  if(atrasadas.length) alerts+='<div class="alert-box rd">🔴 '+atrasadas.length+' tarefa(s) com prazo vencido</div>';
+  if(urgentes.length) alerts+='<div class="alert-box og">⚠ '+urgentes.length+' tarefa(s) de alta prioridade em aberto</div>';
+  document.getElementById('alerts-gestor').innerHTML=alerts;
+
+  var grid=SETORES.map(function(s){
+    var open=tarefas.filter(function(t){return t.setor===s.id&&t.status!=='concluido';}).length;
+    var tot=tarefas.filter(function(t){return t.setor===s.id;}).length;
+    var dn=tot-open;
+    var pct=tot>0?Math.round(dn/tot*100):0;
+    var recS=RECORRENTES_BASE.filter(function(r){return r.setor===s.id;});
+    var recD=recS.filter(function(r){return recChecks[mk+'|'+r.setor+'|'+r.titulo];}).length;
+    return '<div class="setor-cell" style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;">'
+      + '<div style="font-size:12px;font-family:var(--mn);color:var(--tx2);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+s.icon+' '+s.nome+'</div>'
+      + '<div style="height:5px;border-radius:3px;background:var(--sf2);margin-bottom:5px;overflow:hidden;"><div style="height:5px;border-radius:3px;background:var(--gn);width:'+pct+'%"></div></div>'
+      + '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--tx3);font-family:var(--mn);"><span>'+open+' abertas</span><span>'+recD+'/'+recS.length+' rec.</span></div>'
+      + '</div>';
+  }).join('');
+  document.getElementById('setor-grid').innerHTML=grid;
+
+  var foco=tarefas.filter(function(t){return t.status!=='concluido'&&(t.prio==='alta'||overduePrazo(t));})
+    .sort(function(a,b){ return (overduePrazo(b)?1:0)-(overduePrazo(a)?1:0); }).slice(0,6);
+  document.getElementById('lista-recente').innerHTML = foco.length
+    ? '<div class="board" style="flex-direction:column;min-width:0;">'+foco.map(function(t){return cardMini(t);}).join('')+'</div>'
+    : '<div class="empty"><span class="ei">✓</span>Nada urgente no momento.</div>';
 }
 
-function setFilterT(el, v) {
-  filterT = v;
-  el.parentNode.querySelectorAll('.pill').forEach(function(p){ p.classList.remove('on'); });
-  el.classList.add('on');
-  renderTriagem();
+function cardMini(t){
+  return '<div class="card '+t.prio+'" style="width:100%;cursor:pointer;" onclick="setPage(\'tarefas\');openEditTarefa(\''+t.id+'\')">'
+    + '<div class="card-title">'+esc(t.titulo)+'</div>'
+    + '<div class="tags">'
+      + (t.origem==='WhatsApp'?'<span class="tag wa">✆ WhatsApp</span>':'')
+      + setorTag(t.setor)
+      + '<span class="tag '+t.prio+'">'+prioLabel(t.prio)+'</span>'
+      + (t.prazo?'<span class="tag">⚑ '+esc(t.prazo)+(overduePrazo(t)?' • vencido':'')+'</span>':'')
+    + '</div></div>';
 }
 
-function cardTriagem(m, mode) {
-  var ov = mode==='o' && over(m.ts);
-  var pc = {Alta:'pA',Média:'pM',Normal:'pN'};
-  var tc = {Alta:'tA',Média:'tM',Normal:'tN'};
-  var btns = '';
-  if (mode==='o') {
-    btns = '<button class="btn-done" onclick="markDoneT(\''+m.id+'\')">✓ Respondido</button>'
-         + '<button class="btn-convert" onclick="converterEmTarefa(\''+m.id+'\')">→ Tarefa</button>'
-         + '<button class="btn-edit" onclick="openEditT(\''+m.id+'\')">✏</button>'
-         + '<button class="btn-del" onclick="delT(\''+m.id+'\')">excluir</button>';
-  } else if (mode==='d') {
-    btns = '<button class="btn-archive" onclick="archiveT(\''+m.id+'\')">📦</button>'
-         + '<button class="btn-reopen" onclick="reopenT(\''+m.id+'\')">↩ Reabrir</button>'
-         + '<button class="btn-del" onclick="delT(\''+m.id+'\')">excluir</button>';
-  } else {
-    btns = '<button class="btn-reopen" onclick="reopenT(\''+m.id+'\')">↩ Reabrir</button>'
-         + '<button class="btn-del" onclick="delT(\''+m.id+'\')">excluir</button>';
-  }
-  var obsHtml = (m.obs) ? '<div class="obs-box"><span>obs · </span>'+m.obs+'</div>' : '';
-  return '<div class="card '+(pc[m.prio]||'pN')+'">'
-    + '<div class="cn">'+m.cliente+'</div>'
-    + '<div class="cm">'+m.msg+'</div>'
-    + obsHtml
-    + '<div class="mt">'
-    + (m.setor?'<span class="tag ts">'+m.setor+'</span>':'')
-    + '<span class="tag '+(tc[m.prio]||'tN')+'">'+m.prio+'</span>'
-    + (m.prazo?'<span class="tag">📅 '+formatarPrazo(m.prazo)+'</span>':'')
-    + '<span class="ct">'+ago(m.ts)+'</span>'
-    + (ov?'<span class="tag ov">+24h</span>':'')
-    + '</div>'
-    + '<div class="card-btns">'+btns+'</div>'
-    + '</div>';
+// ============================================================
+//  RENDER — RECORRENTES
+// ============================================================
+function prevMes(){ curMes--; if(curMes<0){curMes=11;curAno--;} renderRec(); }
+function nextMes(){ curMes++; if(curMes>11){curMes=0;curAno++;} renderRec(); }
+
+function toggleRec(setor,titulo,periodo){
+  var key=mesKey()+'|'+setor+'|'+titulo;
+  var val=!recChecks[key];
+  recChecks[key]=val;
+  saveLocal(); renderRec(); renderGestor();
+  post({action:'rec_check', chave:key, setor:setor, titulo:titulo, periodo:periodo, mesAno:mesKey(), concluido:val?'sim':'nao'}, null, null);
 }
 
-// ── RENDER: TAREFAS ──
-function stabTar(t) {
-  tabTar = t;
-  ['o','d'].forEach(function(x){
-    document.getElementById('tt-'+x).className = 'tab' + (t===x?' on':'');
-    document.getElementById('tar-'+x).style.display = t===x ? 'block' : 'none';
-  });
-}
-
-function parsePrazo(prazo) {
-  if (!prazo) return Infinity;
-  var s = String(prazo).trim();
-  var partes = s.split('/');
-  if (partes.length === 3) {
-    return new Date(partes[2], partes[1]-1, partes[0]).getTime();
-  }
-  var d = new Date(s);
-  return isNaN(d.getTime()) ? Infinity : d.getTime();
-}
-
-function renderTarefas() {
-  var setoresUsados = [...new Set(tarefas.map(function(t){ return t.setor; }))];
-  var pillsHtml = '<div class="pill'+(filterTar===''?' on':'')+'" onclick="setFilterTar(this,\'\')">Todos</div>'
-    + SETORES.filter(function(s){ return setoresUsados.indexOf(s.id) >= 0; })
-      .map(function(s){ return '<div class="pill'+(filterTar===s.id?' on':'')+'" onclick="setFilterTar(this,\''+s.id+'\')">'+s.nome+'</div>'; }).join('');
-  document.getElementById('pills-tarefas').innerHTML = pillsHtml;
-
-  var list = tarefas.filter(function(t){ return !filterTar || t.setor===filterTar; });
-
-  // Ordenar por prazo mais próximo — sem prazo vai para o final
-  var o = list.filter(function(t){ return t.status==='open'; })
-    .sort(function(a,b){ return parsePrazo(a.prazo) - parsePrazo(b.prazo); });
-  var d = list.filter(function(t){ return t.status==='done'; })
-    .sort(function(a,b){ return parsePrazo(a.prazo) - parsePrazo(b.prazo); });
-
-  document.getElementById('tar-o').innerHTML = o.length ? o.map(function(t){ return cardTarefa(t,false); }).join('') : '<div class="empty"><span class="ei">✓</span>Nenhuma em aberto</div>';
-  document.getElementById('tar-d').innerHTML = d.length ? d.map(function(t){ return cardTarefa(t,true); }).join('') : '<div class="empty">Nenhuma concluída</div>';
-}
-
-function setFilterTar(el, v) {
-  filterTar = v;
-  el.parentNode.querySelectorAll('.pill').forEach(function(p){ p.classList.remove('on'); });
-  el.classList.add('on');
-  renderTarefas();
-}
-
-function formatarPrazo(prazo) {
-  if (!prazo) return '';
-  var s = String(prazo).trim();
-  if (!s || s === 'undefined' || s === 'null') return '';
-  // Já está no formato dd/mm/aaaa
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
-  // Tenta converter qualquer formato de data
-  try {
-    var d = new Date(s);
-    if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
-    }
-  } catch(e) {}
-  return s;
-}
-
-function cardTarefa(t, isDone) {
-  var pc = {alta:'pA',media:'pM',normal:'pN'};
-  var tc = {alta:'tA',media:'tM',normal:'tN'};
-  var sNome = setorNome(t.setor);
-  var btns = isDone
-    ? '<button class="btn-reopen" onclick="reopenTar(\''+t.id+'\')">↩ Reabrir</button><button class="btn-del" onclick="delTar(\''+t.id+'\')">excluir</button>'
-    : '<button class="btn-done" onclick="doneTar(\''+t.id+'\')">✓ Concluir</button><button class="btn-del" onclick="delTar(\''+t.id+'\')">excluir</button>';
-  return '<div class="card '+(pc[t.prio]||'pN')+(isDone?' done-card':'')+'">'
-    + '<div class="cn">'+t.titulo+'</div>'
-    + (t.desc?'<div class="cm">'+t.desc+'</div>':'')
-    + '<div class="mt">'
-    + '<span class="tag ts">'+sNome+'</span>'
-    + '<span class="tag '+(tc[t.prio]||'tN')+'">'+(t.prio==='alta'?'Alta':t.prio==='media'?'Média':'Normal')+'</span>'
-    + (t.prazo?'<span class="tag">📅 '+formatarPrazo(t.prazo)+'</span>':'')
-    + (t.resp?'<span class="tag">👤 '+t.resp+'</span>':'')
-    + '<span class="ct">'+ago(t.ts)+'</span>'
-    + (!isDone && over(t.ts)?'<span class="tag ov">+24h</span>':'')
-    + '</div>'
-    + '<div class="card-btns">'+btns+'</div>'
-    + '</div>';
-}
-
-// ── RENDER: RECORRENTES ──
-function renderRecorrentes() {
-  document.getElementById('mes-label').textContent = MESES[curMes] + ' ' + curAno;
-  var mk = mesKey();
-  var html = SETORES.map(function(s) {
-    var recs = RECORRENTES_BASE.filter(function(r){ return r.setor===s.id; });
-    if (!recs.length) return '';
-    var done = recs.filter(function(r){ return recChecks[mk+'|'+r.setor+'|'+r.titulo]; }).length;
-    return '<div class="rec-group">'
-      + '<div class="rec-group-title">'
-      + s.icon + ' ' + s.nome
-      + '<span class="rec-progress">' + done + '/' + recs.length + '</span>'
-      + '</div>'
-      + recs.map(function(r) {
-          var key = mk+'|'+r.setor+'|'+r.titulo;
-          var ck = !!recChecks[key];
-          return '<div class="rec-item">'
-            + '<div class="check-circle'+(ck?' ck':'')+'" onclick="toggleRec(\''+r.setor+'\',\''+r.titulo.replace(/'/g,"\\'")+(r.periodo)+'\')">'
-            + (ck ? '✓' : '') + '</div>'
-            + '<div style="flex:1"><div class="rec-title'+(ck?' done':'')+'">'+r.titulo+'</div>'
-            + '<div class="rec-period">'+r.periodo+'</div></div>'
+function renderRec(){
+  document.getElementById('mes-label').textContent = MESES[curMes]+' '+curAno;
+  var mk=mesKey();
+  var html=SETORES.map(function(s){
+    var itens=RECORRENTES_BASE.filter(function(r){return r.setor===s.id;});
+    if(!itens.length) return '';
+    return '<div class="rec-setor"><div class="rec-setor-h">'+s.icon+' '+s.nome+'</div>'
+      + itens.map(function(r){
+          var key=mk+'|'+r.setor+'|'+r.titulo;
+          var done=!!recChecks[key];
+          return '<div class="rec-item'+(done?' done':'')+'" onclick="toggleRec(\''+s.id+'\',\''+r.titulo.replace(/'/g,"\\'")+'\',\''+r.periodo+'\')">'
+            + '<div class="rec-check">'+(done?'✓':'')+'</div>'
+            + '<div class="rec-info"><div class="rec-titulo">'+esc(r.titulo)+'</div><div class="rec-periodo">'+r.periodo+'</div></div>'
             + '</div>';
         }).join('')
       + '</div>';
   }).join('');
-  document.getElementById('rec-list').innerHTML = html;
+  document.getElementById('rec-list').innerHTML=html;
 }
 
-// ── AUTENTICAÇÃO GOOGLE ──
-var EMAILS_AUTORIZADOS = [
-  'theloscontabilidade@gmail.com',
-  'atendimento.thelos@gmail.com',
-  'theloscontabilidade.dp@gmail.com',
-  'agenda1.thelos@gmail.com',
-  'theloscontabilidade.protocolo@gmail.com',
-  'thelos.fiscal@gmail.com'
-];
+// ============================================================
+//  RENDER ALL
+// ============================================================
+function renderAll(){ renderPills(); renderBoard(); renderGestor(); }
 
-function handleCredential(response) {
-  try {
-    var payload = JSON.parse(atob(response.credential.split('.')[1]));
-    var email = payload.email;
-    if (EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
-      AUTH_TOKEN = response.credential;
-      TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000;
-      sessionStorage.setItem('thelos_auth', email);
-      sessionStorage.setItem('thelos_token', response.credential);
-      sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
-      document.getElementById('auth-screen').classList.add('h');
-      document.getElementById('main-app').style.display = 'flex';
-      document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
-      // Iniciar renovação automática
-      google.accounts.id.initialize({
-        client_id: '332476927471-6oi8qs6vd0fojnm4j8hum6buljtf2jvm.apps.googleusercontent.com',
-        callback: function(r) {
-          AUTH_TOKEN = r.credential;
-          sessionStorage.setItem('thelos_token', r.credential);
-          TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000;
-          sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
-        },
-        auto_select: true
-      });
-      // Renovar a cada 40 minutos silenciosamente
-      setInterval(function() {
-        google.accounts.id.prompt(function(n) {});
-      }, 40 * 60 * 1000);
-      initApp();
-    } else {
-      document.getElementById('auth-denied').style.display = 'block';
-      document.getElementById('auth-denied-email').textContent = email;
-    }
-  } catch(e) { console.error('Erro auth:', e); }
-}
-
-function checkSession() {
-  var email = sessionStorage.getItem('thelos_auth');
-  var token = sessionStorage.getItem('thelos_token');
-  var expiry = parseInt(sessionStorage.getItem('thelos_token_expiry') || '0');
-  if (email && token && EMAILS_AUTORIZADOS.indexOf(email) >= 0) {
-    AUTH_TOKEN = token;
-    document.getElementById('auth-screen').classList.add('h');
-    document.getElementById('main-app').style.display = 'flex';
-    document.getElementById('auth-user-hdr').textContent = email.split('@')[0];
-    // Renovar se token estiver próximo de expirar
-    if (expiry - Date.now() < 10 * 60 * 1000) {
-      google.accounts.id.initialize({
-        client_id: '332476927471-6oi8qs6vd0fojnm4j8hum6buljtf2jvm.apps.googleusercontent.com',
-        callback: function(r) {
-          AUTH_TOKEN = r.credential;
-          sessionStorage.setItem('thelos_token', r.credential);
-          TOKEN_EXPIRY = Date.now() + 45 * 60 * 1000;
-          sessionStorage.setItem('thelos_token_expiry', TOKEN_EXPIRY);
-        },
-        auto_select: true
-      });
-      google.accounts.id.prompt(function(n) {});
-    }
-    // Renovar a cada 40 minutos
-    setInterval(function() {
-      google.accounts.id.prompt(function(n) {});
-    }, 40 * 60 * 1000);
-    initApp();
-    return true;
+// ============================================================
+//  INIT
+// ============================================================
+(function init(){
+  var saved=sessionStorage.getItem('thelos_auth');
+  var email=sessionStorage.getItem('thelos_email');
+  if(saved && email && EMAILS_OK.indexOf(email)>=0){
+    AUTH_TOKEN=saved;
+    entrarApp(email);
+  } else {
+    loadLocal();
   }
-  return false;
-}
-
-function logout() {
-  sessionStorage.removeItem('thelos_auth');
-  sessionStorage.removeItem('thelos_token');
-  sessionStorage.removeItem('thelos_token_expiry');
-  AUTH_TOKEN = '';
-  google.accounts.id.disableAutoSelect();
-  location.reload();
-}
-
-function initApp() {
-  loadLocal();
-  checkBanner();
-  renderGestor();
-  renderTriagem();
-  renderTarefas();
-  renderRecorrentes();
-  setPage('gestor');
-  if (SCRIPT_URL) loadAll();
-}
-
-// ── INIT ──
-if (!checkSession()) {
-  // Aguarda Google Sign-In carregar
-}
-
+})();
 </script>
 </body>
 </html>
