@@ -259,6 +259,10 @@ body{font-family:var(--sn);background:var(--grad);background-attachment:fixed;co
 .sens-alert{display:none;background:var(--rdb);border:1px solid var(--rdd);border-radius:var(--r);padding:9px 11px;font-size:12px;color:var(--rd);margin-top:8px;line-height:1.45;}
 .sens-alert.show{display:block;}
 .cmt-actions{display:flex;justify-content:flex-end;margin-top:8px;}
+.desc-links{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;}
+.desc-link{font-size:12px;font-family:var(--mn);padding:6px 11px;border-radius:20px;background:var(--blb);color:var(--bl);border:1px solid var(--bld);text-decoration:none;display:inline-flex;align-items:center;gap:6px;max-width:100%;overflow:hidden;}
+.desc-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;}
+.desc-link:hover{background:var(--bld);}
 
 /* ── TOAST ── */
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--accent);color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:300;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.3);}
@@ -384,7 +388,9 @@ body{font-family:var(--sn);background:var(--grad);background-attachment:fixed;co
       <div class="field"><label>Prazo</label><input type="text" id="f-prazo" placeholder="dd/mm/aaaa"/></div>
     </div>
     <div class="field"><label>Responsável</label><input type="text" id="f-resp" placeholder="Nome da pessoa"/></div>
-    <div class="field"><label>Descrição / cliente / contexto</label><textarea id="f-desc" placeholder="Detalhe o pedido ou as instruções..."></textarea></div>
+    <div class="field"><label>Descrição / cliente / contexto</label><textarea id="f-desc" placeholder="Detalhe o pedido ou as instruções..." oninput="renderDescLinks()"></textarea>
+      <div id="desc-links" class="desc-links"></div>
+    </div>
 
     <div class="det-sec" id="det-checklist" style="display:none;">
       <div class="det-sec-t">▤ Checklist</div>
@@ -682,6 +688,28 @@ function setorAbbr(id){ return ({fiscal:'Fiscal',dp:'DP',protA:'Prot. A',protB:'
 function mesKey(){ return curAno+'-'+(curMes+1); }
 function prioLabel(p){ return p==='alta'?'Alta':p==='media'?'Média':'Normal'; }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Detecta URLs na descrição e mostra botões clicáveis abaixo do campo
+function extrairLinks(texto){
+  var re=/(https?:\/\/[^\s<>"']+)/gi;
+  var achados=String(texto||'').match(re)||[];
+  var unicos=[];
+  achados.forEach(function(u){ u=u.replace(/[.,;:)\]]+$/,''); if(unicos.indexOf(u)<0) unicos.push(u); });
+  return unicos;
+}
+function rotuloLink(url){
+  try{ var h=url.replace(/^https?:\/\//i,'').replace(/^www\./i,''); return h.split('/')[0]; }
+  catch(e){ return url; }
+}
+function renderDescLinks(){
+  var box=document.getElementById('desc-links');
+  if(!box) return;
+  var txt=document.getElementById('f-desc').value;
+  var links=extrairLinks(txt);
+  box.innerHTML = links.map(function(u){
+    return '<a class="desc-link" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer" title="'+esc(u)+'">🔗 <span>'+esc(rotuloLink(u))+'</span></a>';
+  }).join('');
+}
 function parseJSONsafe(v, fb){ try{ if(!v) return fb; if(typeof v==='object') return v; var p=JSON.parse(v); return p||fb; }catch(e){ return fb; } }
 function initials(n){ return String(n||'?').replace(/[()<>]/g,'').trim().split(/\s+/).slice(0,2).map(function(x){return x[0];}).join('').toUpperCase()||'?'; }
 function looksSensitive(s){
@@ -718,6 +746,7 @@ function openAddTarefa(){
   document.getElementById('f-setor').value='';
   document.getElementById('f-prio').value='normal';
   document.getElementById('f-origem').value='Interno';
+  renderDescLinks();
   document.getElementById('btn-del-tar').classList.add('h');
   editChecklist=[]; editComentarios=[];
   document.getElementById('det-checklist').style.display='none';
@@ -738,6 +767,7 @@ function openEditTarefa(id){
   document.getElementById('f-prazo').value=t.prazo||'';
   document.getElementById('f-resp').value=t.resp||'';
   document.getElementById('f-desc').value=t.desc||'';
+  renderDescLinks();
   document.getElementById('btn-del-tar').classList.remove('h');
   editChecklist = (t.checklist||[]).map(function(c){ return {t:c.t, done:!!c.done}; });
   editComentarios = (t.comentarios||[]).slice();
