@@ -123,6 +123,7 @@ body{font-family:var(--sn);background:var(--grad);background-attachment:fixed;co
 
 /* ── WRAP ── */
 .wrap{padding:14px 14px 0;max-width:760px;margin:0 auto;}
+#page-tarefas{max-width:1600px;}
 
 /* ── STATS ── */
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
@@ -151,7 +152,7 @@ body{font-family:var(--sn);background:var(--grad);background-attachment:fixed;co
 .board-fade{position:absolute;top:0;right:0;width:56px;height:100%;pointer-events:none;background:linear-gradient(to right,transparent,var(--bg));opacity:0;transition:opacity .25s ease;}
 .board-hint{position:absolute;top:50%;right:8px;transform:translateY(-50%);pointer-events:none;color:var(--tx2);font-size:22px;font-family:var(--mn);opacity:0;transition:opacity .25s ease;}
 .board{display:flex;gap:12px;align-items:flex-start;min-width:min-content;}
-.col{background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-bd);border-radius:var(--rl);padding:8px;width:260px;flex-shrink:0;min-height:120px;transition:width .25s ease;}
+.col{background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--glass-bd);border-radius:var(--rl);padding:8px;flex:1 1 0;min-width:260px;max-width:520px;flex-shrink:0;min-height:120px;transition:width .25s ease;}
 .col.drag-over{outline:2px dashed var(--accent);outline-offset:-2px;}
 .col-head{display:flex;align-items:center;justify-content:space-between;padding:5px 7px 9px;gap:6px;}
 .col-title{font-size:12px;font-family:var(--mn);font-weight:500;color:var(--tx2);letter-spacing:.02em;text-transform:uppercase;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -159,7 +160,7 @@ body{font-family:var(--sn);background:var(--grad);background-attachment:fixed;co
 .col-toggle{font-size:13px;color:var(--tx3);background:none;border:none;cursor:pointer;padding:2px 4px;line-height:1;flex-shrink:0;}
 .col-toggle:hover{color:var(--tx);}
 /* coluna recolhida → faixa fina vertical */
-.col.collapsed{width:46px;padding:8px 6px;cursor:pointer;}
+.col.collapsed{width:46px;flex:0 0 46px;min-width:46px;max-width:46px;padding:8px 6px;cursor:pointer;}
 .col.collapsed .col-head{flex-direction:column;gap:10px;padding:6px 0;}
 .col.collapsed .col-title{writing-mode:vertical-rl;transform:rotate(180deg);text-align:left;max-height:160px;}
 .col.collapsed .col-body{display:none;}
